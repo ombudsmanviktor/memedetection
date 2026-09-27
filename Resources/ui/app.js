@@ -138,6 +138,7 @@ function setCSV(res) {
   state.csv = { path: res.path, name: res.name, dir: res.dir, size: res.size };
   state.table = table;
   $('csv-name').textContent = res.name;
+  $('csv-name').title = res.path;
   $('csv-meta').textContent = `${fmtInt(table.rows.length)} linhas · ${table.header.length} colunas · ${fmtBytes(res.size || 0)}`;
   $('card-csv').classList.add('visible');
   $('dz-csv').classList.add('loaded');
@@ -155,6 +156,7 @@ function setFolder(res) {
   res.files.forEach(f => { const e = (f.name.match(/\.([^.\/]+)$/) || [, '?'])[1].toLowerCase(); exts[e] = (exts[e] || 0) + 1; });
   const top = Object.entries(exts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([e, n]) => `${fmtInt(n)} .${e}`).join(' · ');
   $('folder-name').textContent = res.name;
+  $('folder-name').title = res.path;
   $('folder-meta').textContent = `${fmtInt(imgs)} imagens de ${fmtInt(res.files.length)} arquivos${top ? ' · ' + top : ''}`;
   $('card-folder').classList.add('visible');
   $('dz-folder').classList.add('loaded');

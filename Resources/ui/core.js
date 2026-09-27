@@ -6,7 +6,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.1';
   const MODEL_VAL_ACCURACY = 0.91;      // declarada no README do modelo (Bohacek, 2020)
   const ROWNUM = '#linha';              // pseudo-coluna: número da linha (1 = primeira linha de dados)
   const MD_FIELDS = ['md_rotulo', 'md_prob_meme', 'md_confianca', 'md_logit', 'md_nivel_confianca',

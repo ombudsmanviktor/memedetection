@@ -282,12 +282,25 @@ details.rbox[open] > summary .chev { transform: rotate(90deg); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ── MemeDetection: extras ──────────────────────────────────────────── */
-.drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 1.2rem; }
+.drop-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.2rem; margin-bottom: 1.2rem; }
+.drop-grid > div { min-width: 0; }
 @media (max-width: 760px) { .drop-grid { grid-template-columns: 1fr; } }
 .drop-grid .dropzone { margin-bottom: 0.8rem; padding: 2.2rem 1.5rem; }
 .drop-grid .file-card { margin-bottom: 0; }
 .dropzone.loaded { border-style: solid; border-color: var(--accent); }
-.file-card-meta { white-space: normal; text-align: right; }
+.file-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
+.file-card-text .file-card-name { flex: none; }
+.file-card-text .file-card-meta { white-space: normal; line-height: 1.45; }
+
+/* Nomes longos sem espaços (arquivos, caminhos) quebram linha em vez de alargar a janela */
+.step-desc, .banner, .banner code, .panel-hint, .save-card p, .info-box li { overflow-wrap: anywhere; }
+.config-grid > *, .save-grid > *, .stats > * { min-width: 0; }
+.config-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 760px) { .config-grid { grid-template-columns: minmax(0, 1fr); } }
+.save-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 700px) { .save-grid { grid-template-columns: minmax(0, 1fr); } }
+.preview-table td.name-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.thumbs .name-cell { overflow-wrap: anywhere; white-space: normal; }
 .step-label { font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-mid); font-weight: 600; margin-bottom: 0.45rem; }
 .step-label .num { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 0.66rem; align-items: center; justify-content: center; margin-right: 0.45rem; }
 
