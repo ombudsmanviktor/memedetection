@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemeDetection — memes ou fotos?</title>
+  <meta name="description" content="App para macOS que classifica como meme ou foto as imagens ligadas a um CSV, com o modelo meme-detection rodando localmente no Core ML. Acrescenta rótulos e métricas ao CSV e filtra só as linhas de memes.">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .page { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; width: 100%; }
+    @media (max-width: 560px) { .page { padding: 1.8rem 1rem 3rem; } }
+    .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 2rem; align-items: center; margin-bottom: 2.5rem; }
+    @media (max-width: 800px) { .hero { grid-template-columns: 1fr; } }
+    .hero h1 { font-family: Georgia, serif; font-weight: normal; font-size: 2.1rem; line-height: 1.2; margin-bottom: 0.8rem; }
+    .hero h1 em { color: var(--accent); font-style: normal; }
+    .hero p { color: var(--ink-mid); margin-bottom: 1.2rem; }
+    .hero .btn { font-size: 0.95rem; padding: 0.7rem 1.3rem; text-decoration: none; }
+    .req { font-size: 0.78rem; color: var(--ink-muted); margin-top: 0.7rem; }
+    .shot { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--border); box-shadow: 0 8px 30px rgba(0,0,0,.12); display: block; }
+    h2 { font-family: Georgia, serif; font-weight: normal; font-size: 1.35rem; margin: 2.4rem 0 0.8rem; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+    .step-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.1rem; }
+    .step-card h3 { font-size: 0.92rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
+    .step-card p { font-size: 0.84rem; color: var(--ink-muted); line-height: 1.55; }
+    .step-card .step-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .prose p, .prose li { font-size: 0.9rem; color: var(--ink-mid); }
+    .prose ul, .prose ol { padding-left: 1.2rem; margin: 0.4rem 0 0.8rem; }
+    .prose li { margin-bottom: 0.3rem; }
+    .prose p { margin-bottom: 0.7rem; }
+    .prose code, td code { font-size: 0.8rem; background: var(--surface2); padding: 0.05rem 0.3rem; border-radius: 3px; color: var(--ink-mid); }
+    .doc-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .doc-table th, .doc-table td { text-align: left; padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+    .doc-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); background: var(--surface2); }
+    .doc-table td:first-child { white-space: nowrap; }
+    .table-scroll { overflow-x: auto; }
+    .code-block { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem; font-size: 0.78rem; overflow-x: auto; white-space: pre; line-height: 1.55; margin: 0.5rem 0 1rem; }
+    .nav-links { display: flex; gap: 1rem; flex: 1; justify-content: flex-end; font-size: 0.84rem; }
+    .nav-links a { color: var(--ink-mid); text-decoration: none; }
+    .nav-links a:hover { color: var(--accent); }
+    @media (max-width: 560px) { .nav-links a.opt { display: none; } }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header">
+    <a class="app-logo" href="./">Meme<span>Detection</span></a>
+    <nav class="nav-links">
+      <a href="#como">Como funciona</a>
+      <a href="#modelo" class="opt">O modelo</a>
+      <a href="https://github.com/ombudsmanviktor/memedetection">GitHub</a>
+    </nav>
+    <button class="theme-btn" id="theme-btn" title="Alternar tema" aria-label="Alternar tema claro/escuro">🌙</button>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div>
+        <h1>Memes ou fotos?<br><em>Classifique as imagens do seu CSV.</em></h1>
+        <p>Indique uma planilha e a pasta com as imagens das linhas. O MemeDetection analisa cada imagem <strong>no seu Mac</strong> com o modelo <em>meme-detection</em>, acrescenta ao CSV um rótulo e métricas de confiança e, se você quiser, deixa só as linhas de memes.</p>
+        <div class="btn-row">
+          <a class="btn btn-primary" id="dl" href="https://github.com/ombudsmanviktor/memedetection/releases/latest/download/MemeDetection-macOS.zip">⬇ Baixar para macOS</a>
+          <a class="btn btn-ghost" href="https://github.com/ombudsmanviktor/memedetection" style="text-decoration:none">Código-fonte</a>
+        </div>
+        <p class="req">macOS 12 ou mais recente · Apple Silicon e Intel · gratuito e de código aberto (GPL-2.0)</p>
+      </div>
+      <img class="shot" src="img/screenshot.png" alt="Tela de resultados do MemeDetection, com contagem de linhas com meme, com fotos, sem imagem e com erro, e opções para salvar o CSV" width="1400" height="840">
+    </section>
+
+    <div class="banner banner-info visible"><strong>Por que um app, e não um site?</strong> O modelo de Boháček depende do extrator de features <code>VisionFeaturePrint</code>, que a Apple embute no macOS e que não existe fora dele. Por isso a análise roda no Core ML do seu Mac, sem internet e sem enviar nenhum dado a servidores.</div>
+
+    <h2 id="como">Como funciona</h2>
+    <div class="steps">
+      <div class="step-card"><h3><span class="step-dot">1</span>Arquivos</h3><p>Escolha ou arraste o CSV e a pasta de imagens. Subpastas são incluídas. Bases baixadas com o <a href="https://wgetlab.colab.meme/">WgetLAB</a> funcionam direto.</p></div>
+      <div class="step-card"><h3><span class="step-dot">2</span>Configurar</h3><p>O app descobre qual coluna liga cada linha às imagens, pelo nome do arquivo ou pelo ID (<code>123.jpg</code>, <code>123_1.jpg</code>…). Opcionalmente, indique uma coluna com rótulos conhecidos para medir a acurácia.</p></div>
+      <div class="step-card"><h3><span class="step-dot">3</span>Resultados</h3><p>Salve o CSV completo com rótulos, um CSV só com as linhas de memes ou filtre o próprio arquivo original. O limiar pode ser ajustado sem analisar de novo.</p></div>
+    </div>
+    <img class="shot" src="img/resultados.png" alt="Tabela de resultados por linha, com miniaturas, rótulo, probabilidade de meme, log-odds e nível de confiança" style="margin-top:1.4rem" loading="lazy" width="1400" height="1025">
+
+    <h2>Colunas acrescentadas ao CSV</h2>
+    <p class="prose" style="margin-bottom:.7rem"><span style="font-size:.9rem;color:var(--ink-mid)">As colunas originais ficam intactas, com a mesma ordem, o mesmo delimitador e a mesma codificação. As novas vêm no fim:</span></p>
+    <div class="table-scroll">
+      <table class="doc-table">
+        <thead><tr><th>Coluna</th><th>Conteúdo</th></tr></thead>
+        <tbody>
+          <tr><td><code>md_rotulo</code></td><td><code>meme</code>, <code>foto</code>, <code>sem_imagem</code> ou <code>erro</code>. Uma linha com várias imagens é meme se pelo menos uma delas for.</td></tr>
+          <tr><td><code>md_prob_meme</code></td><td>Probabilidade de meme (0 a 1) calculada pelo modelo.</td></tr>
+          <tr><td><code>md_confianca</code></td><td>Probabilidade da classe escolhida.</td></tr>
+          <tr><td><code>md_logit</code></td><td>Log-odds de meme: positivo = meme, negativo = foto. Como as probabilidades do modelo saturam, é a medida mais útil para comparar imagens.</td></tr>
+          <tr><td><code>md_nivel_confianca</code></td><td><code>alta</code>, <code>média</code> ou <code>baixa</code>, conforme a distância até o limiar. Vale revisar à mão as de confiança baixa.</td></tr>
+          <tr><td><code>md_n_imagens</code>, <code>md_n_memes</code></td><td>Quantas imagens estão ligadas à linha e quantas são memes.</td></tr>
+          <tr><td><code>md_arquivos</code>, <code>md_erro</code></td><td>Arquivos analisados e, se houver, o motivo de falha (ex.: <code>não é imagem (.mp4)</code>).</td></tr>
+          <tr><td><code>md_acuracia_validacao_modelo</code></td><td><code>0.91</code>, a acurácia de validação declarada pelo autor do modelo, para referência.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose" style="margin-top:.9rem">
+      <p>Se você indicar uma coluna com rótulos codificados à mão (<code>meme</code>/<code>foto</code>, <code>1</code>/<code>0</code>, <code>sim</code>/<code>não</code>…), o app calcula <strong>acurácia, precisão, recall e F1</strong>, mostra a matriz de confusão e exporta um relatório em CSV.</p>
+    </div>
+
+    <h2 id="instalar">Instalar e abrir pela primeira vez</h2>
+    <div class="prose">
+      <ol>
+        <li>Baixe <a href="https://github.com/ombudsmanviktor/memedetection/releases/latest/download/MemeDetection-macOS.zip">MemeDetection-macOS.zip</a>, descompacte e arraste o <strong>MemeDetection.app</strong> para Aplicativos.</li>
+        <li>Na primeira vez, clique com o <strong>botão direito → Abrir</strong> e confirme. O app não é notarizado pela Apple, então o macOS avisa antes de abrir.</li>
+        <li>Se o macOS disser que o app "está danificado", rode no Terminal:</li>
+      </ol>
+      <div class="code-block">xattr -dr com.apple.quarantine /Applications/MemeDetection.app</div>
+    </div>
+
+    <h2 id="terminal">Pelo Terminal</h2>
+    <div class="prose">
+      <p>O mesmo app funciona na linha de comando, com a mesma lógica e o mesmo CSV de saída. A tela de configuração mostra o comando pronto:</p>
+      <div class="code-block">/Applications/MemeDetection.app/Contents/MacOS/MemeDetection \
+  --csv ~/pesquisa/posts.csv --images ~/pesquisa/imagens \
+  --only-memes --out ~/pesquisa/posts_memes.csv</div>
+      <p>Outras opções: <code>--column</code>, <code>--mode file|id</code>, <code>--threshold</code>, <code>--truth</code>, <code>--no-metrics</code>, <code>--concurrency</code>. Veja <code>--help</code> ou o <a href="https://github.com/ombudsmanviktor/memedetection#usar-pelo-terminal">README</a>.</p>
+    </div>
+
+    <h2 id="modelo">O modelo</h2>
+    <div class="prose">
+      <p>O app usa o <a href="https://github.com/maty-bohacek/meme-detection">meme-detection</a> de Matyáš Boháček (2020), um classificador <em>meme × foto</em> treinado no Create ML com alguns milhares de imagens anotadas, que o autor declara ter <strong>91% de acurácia de validação</strong>. É um pipeline com o extrator <code>VisionFeaturePrint_Scene</code> da Apple e uma regressão logística. O arquivo vai incluído no app e no repositório.</p>
+      <p><strong>Atenção a quem for usar o repositório original:</strong> o <code>.mlmodel</code> da versão mais recente é, por engano, um classificador de sentimento de <em>texto</em>. O detector de memes correto está no commit <code>de6affb</code>, e é esse que o MemeDetection usa. <a href="https://github.com/ombudsmanviktor/memedetection/blob/main/Resources/model/README.md">Detalhes e verificação</a>.</p>
+      <p>Para dar mais resolução às métricas, o app lê os pesos da regressão direto do arquivo e calcula o log-odds em precisão dupla. A probabilidade é idêntica à do modelo original. Ele acerta bem os <em>image macros</em> com texto sobreposto, mas pode errar com prints de tela, cartazes, charges ou memes sem texto. Meça o desempenho na sua base com uma amostra codificada à mão. No mesmo Mac, os resultados se repetem. Entre Macs diferentes (Apple Silicon × Intel), podem variar um pouco.</p>
+    </div>
+
+    <h2>Privacidade</h2>
+    <div class="prose">
+      <p>O CSV e as imagens são lidos direto do disco e analisados localmente. O app não faz nenhuma conexão de rede, e esta página não usa cookies nem rastreamento. Os arquivos só são gravados onde você escolher, e o CSV original só é alterado se você pedir e confirmar.</p>
+    </div>
+  </main>
+</div>
+
+<footer class="app-footer">
+  <strong>MemeDetection</strong> — classificação local de memes e fotos em planilhas · modelo de <a href="https://github.com/maty-bohacek/meme-detection">Matyáš Boháček</a> (GPL-2.0)<br>
+  Desenvolvido pelo grupo de pesquisa <strong>coLAB/UFF</strong> · veja também o <a href="https://wgetlab.colab.meme/">WgetLAB</a>
+</footer>
+
+<script>
+(function () {
+  const btn = document.getElementById('theme-btn');
+  const apply = t => { document.documentElement.dataset.theme = t; btn.textContent = t === 'dark' ? '☀️' : '🌙'; };
+  let stored = null;
+  try { stored = localStorage.getItem('md-theme'); } catch {}
+  apply(stored || (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'));
+  btn.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('md-theme', next); } catch {}
+    apply(next);
+  });
+})();
+</script>
+</body>
+</html>

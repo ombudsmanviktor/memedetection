@@ -1,0 +1,21 @@
+# Build
+.build/
+dist/
+*.app
+.swiftpm/
+
+# Nenhum dado de usuário vai para o repositório
+*.csv
+*.tsv
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.heic
+*.mp4
+!docs/img/*
+_test/
+
+.DS_Store
+.claude/settings.local.json

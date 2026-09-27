@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemeDetection — memes ou fotos?</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/papaparse.min.js"></script>
+  <script src="core.js"></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <a class="app-logo" href="#" id="logo">Meme<span>Detection</span></a>
+    <nav class="stepper" aria-label="Progresso">
+      <div class="step-item active" id="s-dot-1"><div class="step-dot">1</div><span>Arquivos</span></div>
+      <div class="step-line" id="s-line-1"></div>
+      <div class="step-item" id="s-dot-2"><div class="step-dot">2</div><span>Configurar</span></div>
+      <div class="step-line" id="s-line-2"></div>
+      <div class="step-item" id="s-dot-3"><div class="step-dot">3</div><span>Resultados</span></div>
+    </nav>
+    <button class="theme-btn" id="theme-btn" title="Alternar tema" aria-label="Alternar tema claro/escuro">🌙</button>
+  </header>
+
+  <!-- ── Step 1 — Arquivos ───────────────────────────────────────────── -->
+  <section class="step-section active" id="step-files">
+    <h1 class="step-title">Carregar planilha e pasta de imagens</h1>
+    <p class="step-desc">Indique o CSV e a pasta onde estão as imagens correspondentes às linhas. O app analisa cada imagem neste Mac com o modelo de detecção de memes e diz se é <strong>meme</strong> ou <strong>foto</strong>. Nada é enviado a servidores.</p>
+
+    <div id="env-warn" class="banner banner-warn"></div>
+    <div id="error-files" class="banner banner-error"></div>
+
+    <div class="drop-grid">
+      <div>
+        <div class="step-label"><span class="num">1</span>Planilha CSV</div>
+        <div class="dropzone" id="dz-csv" role="button" tabindex="0" aria-label="Escolher CSV">
+          <div class="dropzone-icon">📄</div>
+          <div class="dropzone-title">Arraste o arquivo CSV aqui</div>
+          <div class="dropzone-hint">ou <strong>clique para escolher</strong> · <strong>.csv</strong> ou .tsv (UTF-8)</div>
+        </div>
+        <div class="file-card" id="card-csv">
+          <div class="file-card-icon">📄</div>
+          <div class="file-card-name" id="csv-name"></div>
+          <div class="file-card-meta" id="csv-meta"></div>
+          <button class="remove-btn" id="csv-remove" title="Remover" aria-label="Remover CSV">✕</button>
+        </div>
+      </div>
+      <div>
+        <div class="step-label"><span class="num">2</span>Pasta de imagens</div>
+        <div class="dropzone" id="dz-folder" role="button" tabindex="0" aria-label="Escolher pasta de imagens">
+          <div class="dropzone-icon">🗂️</div>
+          <div class="dropzone-title">Arraste a pasta de imagens aqui</div>
+          <div class="dropzone-hint">ou <strong>clique para escolher</strong> · subpastas incluídas</div>
+        </div>
+        <div class="file-card" id="card-folder">
+          <div class="file-card-icon">📁</div>
+          <div class="file-card-name" id="folder-name"></div>
+          <div class="file-card-meta" id="folder-meta"></div>
+          <button class="remove-btn" id="folder-remove" title="Remover" aria-label="Remover pasta">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-continue-1" disabled>Continuar →</button>
+      <span style="font-size:.8rem;color:var(--ink-muted)" id="continue-hint"></span>
+    </div>
+    <div class="model-line" id="model-line"><span class="dot"></span>Carregando o modelo…</div>
+
+    <div class="info-box">
+      <h3>Como o app liga cada linha às imagens</h3>
+      <ul>
+        <li><strong>Pelo nome do arquivo</strong>: uma coluna com <code>1234.jpg</code>, <code>imagens/1234.jpg</code> ou vários nomes separados por <code>|</code>, como a coluna <code>wgetlab_arquivo</code> do manifesto do WgetLAB</li>
+        <li><strong>Pelo ID</strong>: arquivos nomeados a partir de uma coluna de ID, no padrão do WgetLAB: <code>&lt;id&gt;.jpg</code>, <code>&lt;id&gt;_1.jpg</code>, <code>&lt;id&gt;_2.png</code>… Também vale o número da linha</li>
+      </ul>
+      <p style="margin-top:.5rem">A coluna mais provável é sugerida automaticamente. Quando uma linha tem várias imagens, ela é rotulada <strong>meme</strong> se pelo menos uma delas for meme. Formatos: JPG, PNG, GIF (primeiro quadro), WebP, HEIC, BMP e TIFF.</p>
+      <h3 style="margin-top:1rem">Sobre o modelo</h3>
+      <p>Classificador <em>meme × foto</em> treinado por Matyáš Boháček com o Create ML (2020): extrator <code>VisionFeaturePrint_Scene</code> da Apple seguido de regressão logística, com <strong>91% de acurácia de validação</strong> declarada pelo autor. Ele roda no Core ML do próprio macOS, por isso o app é só para Mac.</p>
+    </div>
+  </section>
+
+  <!-- ── Step 2 — Configurar ─────────────────────────────────────────── -->
+  <section class="step-section" id="step-config">
+    <h1 class="step-title">Configurar a análise</h1>
+    <p class="step-desc">Confira a coluna que liga cada linha às imagens da pasta e, se quiser, ajuste o limiar e indique uma coluna com rótulos conhecidos para medir a acurácia.</p>
+
+    <div class="config-grid">
+      <div class="panel">
+        <div class="panel-header"><span><span class="num">1</span>Coluna que liga linha e imagem</span></div>
+        <div class="panel-body list" id="link-list"></div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="panel-header"><span><span class="num">2</span>Classificação</span></div>
+          <div class="panel-body">
+            <div class="field">
+              <label for="threshold">Limiar de P(meme)</label>
+              <div class="inline"><input type="number" class="input num" id="threshold" min="0.05" max="0.95" step="0.05" value="0.5"><span style="font-size:.8rem;color:var(--ink-muted)">de 0,05 a 0,95 · padrão 0,5</span></div>
+            </div>
+            <p class="panel-hint">Uma imagem vira <strong>meme</strong> quando a probabilidade calculada pelo modelo é maior ou igual ao limiar. Dá para mudar o limiar depois, na tela de resultados, sem analisar de novo.</p>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:1.2rem">
+          <div class="panel-header"><span><span class="num">3</span>Avaliação da acurácia <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></span></div>
+          <div class="panel-body">
+            <div class="field">
+              <label for="truth-col">Coluna com o rótulo verdadeiro</label>
+              <select class="input" id="truth-col"></select>
+            </div>
+            <p class="panel-hint">Se parte das linhas já foi codificada à mão, o app compara com o resultado do modelo e calcula acurácia, precisão, recall e F1. Valores aceitos: <code>meme</code>, <code>1</code>, <code>sim</code>… para meme e <code>foto</code>, <code>photo</code>, <code>0</code>, <code>não</code>… para foto. Células vazias são ignoradas.</p>
+            <p class="panel-hint" id="truth-count"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-val" id="st-rows">0</div><div class="stat-lbl">linhas no CSV</div></div>
+      <div class="stat"><div class="stat-val" id="st-linked">0</div><div class="stat-lbl">linhas com imagem</div></div>
+      <div class="stat"><div class="stat-val" id="st-images">0</div><div class="stat-lbl">imagens a analisar</div></div>
+      <div class="stat"><div class="stat-val" id="st-orphans">0</div><div class="stat-lbl">arquivos da pasta sem linha</div></div>
+    </div>
+
+    <div id="link-warn" class="banner banner-warn"></div>
+
+    <div class="panel">
+      <div class="panel-header"><span>Prévia das primeiras linhas</span><span id="preview-mode" style="text-transform:none;letter-spacing:0;font-weight:400"></span></div>
+      <div class="table-wrap" style="max-height:300px">
+        <table class="preview-table">
+          <thead><tr><th>Linha</th><th>Valor</th><th>Imagens</th></tr></thead>
+          <tbody id="preview-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <details class="panel adv" style="padding:0">
+      <summary class="panel-header" style="margin:0">Opções avançadas</summary>
+      <div class="panel-body">
+        <div class="field">
+          <label for="concurrency">Análises simultâneas</label>
+          <div class="inline"><input type="number" class="input num" id="concurrency" min="1" max="8" value="4"><span style="font-size:.8rem;color:var(--ink-muted)">de 1 a 8</span></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="panel rbox" id="cmd-config">
+      <summary class="panel-header"><span><span class="chev">▸</span>Comando equivalente no Terminal</span>
+        <span class="btn-row" style="gap:.4rem"><button class="btn-small" data-cmd="copy">Copiar</button></span>
+      </summary>
+      <pre class="code" data-cmd="code"></pre>
+    </details>
+
+    <div id="error-config" class="banner banner-error"></div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="btn-back-1">← Voltar</button>
+      <button class="btn btn-primary" id="btn-start">🔍 Analisar imagens</button>
+      <span style="font-size:.8rem;color:var(--ink-muted)" id="start-hint"></span>
+    </div>
+  </section>
+
+  <!-- ── Step 3 — Resultados ─────────────────────────────────────────── -->
+  <section class="step-section" id="step-run">
+    <h1 class="step-title" id="run-title">Analisando imagens</h1>
+    <p class="step-desc" id="run-desc"></p>
+
+    <div class="progress"><div class="progress-bar" id="prog-bar"></div></div>
+    <div class="progress-meta"><span class="run-status" id="run-status">Preparando…</span><span id="prog-text">0 / 0</span></div>
+
+    <div class="stats">
+      <div class="stat meme"><div class="stat-val" id="rs-meme">0</div><div class="stat-lbl">linhas com meme</div></div>
+      <div class="stat foto"><div class="stat-val" id="rs-foto">0</div><div class="stat-lbl">linhas com fotos</div></div>
+      <div class="stat"><div class="stat-val" id="rs-none">0</div><div class="stat-lbl">sem imagem</div></div>
+      <div class="stat fail"><div class="stat-val" id="rs-err">0</div><div class="stat-lbl">com erro</div></div>
+      <div class="stat low"><div class="stat-val" id="rs-low">0</div><div class="stat-lbl">baixa confiança</div></div>
+    </div>
+
+    <div class="btn-row" style="margin-bottom:1.2rem" id="run-controls">
+      <button class="btn btn-ghost" id="btn-pause">⏸ Pausar</button>
+      <button class="btn btn-danger" id="btn-cancel">✕ Cancelar</button>
+    </div>
+
+    <div id="err-hint" class="banner banner-warn"></div>
+    <div id="saved" class="banner banner-info"></div>
+    <div id="error-run" class="banner banner-error"></div>
+
+    <div class="panel" id="save-panel">
+      <div class="panel-header"><span>Salvar resultados</span></div>
+      <div class="panel-body">
+        <div class="range-row" style="margin-bottom:1rem">
+          <label for="thr-live" style="font-weight:600;color:var(--ink-mid);font-size:.8rem">Limiar de P(meme)</label>
+          <input type="range" id="thr-live" min="0.05" max="0.95" step="0.05" value="0.5">
+          <span class="range-val" id="thr-val">0,50</span>
+          <span style="font-size:.78rem;color:var(--ink-muted)">muda os rótulos na hora, sem analisar de novo</span>
+        </div>
+        <div class="save-grid">
+          <div class="save-card">
+            <h4>CSV completo com rótulos</h4>
+            <p>Todas as linhas do CSV original, na mesma ordem e com as mesmas colunas, seguidas das colunas <code>md_*</code>: rótulo, probabilidade, confiança, log-odds, nível de confiança, arquivos e erros.</p>
+            <button class="btn btn-primary" id="btn-save-all">💾 Salvar CSV…</button>
+          </div>
+          <div class="save-card">
+            <h4>Só as linhas de memes</h4>
+            <p>Um CSV novo só com as linhas rotuladas como <strong>meme</strong> (<span id="n-memes">0</span>). O arquivo original não é alterado.</p>
+            <label class="radio-row" style="font-size:.8rem"><input type="checkbox" id="keep-metrics" checked> Incluir as colunas <code>md_*</code></label>
+            <button class="btn btn-ghost" id="btn-save-memes">💾 Salvar só memes…</button>
+          </div>
+          <div class="save-card">
+            <h4>Filtrar o CSV original</h4>
+            <p>Sobrescreve <strong id="orig-name"></strong>, mantendo só as linhas de memes e eliminando as demais. Pede confirmação e não pode ser desfeito.</p>
+            <button class="btn btn-danger" id="btn-overwrite">Substituir o original…</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="eval-panel" style="display:none">
+      <div class="panel-header"><span>Avaliação da acurácia</span><button class="btn-small" id="btn-eval-save">↓ Relatório CSV</button></div>
+      <div class="panel-body">
+        <div class="stats" style="margin-bottom:.8rem">
+          <div class="stat"><div class="stat-val" id="ev-acc">—</div><div class="stat-lbl">acurácia</div></div>
+          <div class="stat"><div class="stat-val" id="ev-prec">—</div><div class="stat-lbl">precisão (meme)</div></div>
+          <div class="stat"><div class="stat-val" id="ev-rec">—</div><div class="stat-lbl">recall (meme)</div></div>
+          <div class="stat"><div class="stat-val" id="ev-f1">—</div><div class="stat-lbl">F1 (meme)</div></div>
+        </div>
+        <div id="ev-matrix"></div>
+        <p class="panel-hint" id="ev-note"></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span>Resultados por linha</span>
+        <span class="seg" role="group" aria-label="Filtro dos resultados">
+          <button class="on" data-filter="all">Todas</button><button data-filter="meme">Memes</button><button data-filter="foto">Fotos</button><button data-filter="baixa">Baixa confiança</button><button data-filter="erro">Erros e sem imagem</button>
+        </span>
+      </div>
+      <div class="table-wrap" style="max-height:520px">
+        <table class="log-table">
+          <thead><tr><th>Linha</th><th>Imagem</th><th>Rótulo</th><th>P(meme)</th><th>Log-odds</th><th>Confiança</th></tr></thead>
+          <tbody id="res-body"></tbody>
+        </table>
+        <div class="table-note" id="res-note"></div>
+      </div>
+    </div>
+
+    <details class="panel rbox" id="cmd-run">
+      <summary class="panel-header"><span><span class="chev">▸</span>Comando equivalente no Terminal</span>
+        <span class="btn-row" style="gap:.4rem"><button class="btn-small" data-cmd="copy">Copiar</button></span>
+      </summary>
+      <pre class="code" data-cmd="code"></pre>
+    </details>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="btn-back-2">← Ajustar configuração</button>
+      <button class="btn btn-primary" id="btn-new">Nova análise</button>
+    </div>
+  </section>
+
+</div><!-- app-shell -->
+
+<footer class="app-footer">
+  <strong>MemeDetection</strong> — classifica imagens de planilhas como memes ou fotos · tudo roda neste Mac, nenhum dado é enviado a servidores<br>
+  Modelo de <a href="https://github.com/maty-bohacek/meme-detection" target="_blank" rel="noopener">Matyáš Boháček</a> · desenvolvido pelo grupo de pesquisa <strong>coLAB/UFF</strong> · <a href="https://memedetection.colab.meme/" target="_blank" rel="noopener">memedetection.colab.meme</a>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
