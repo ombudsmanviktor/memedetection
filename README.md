@@ -21,9 +21,10 @@ A classificação usa o modelo **[meme-detection](https://github.com/maty-bohace
 - Acrescenta ao CSV as colunas `md_*`, **sem alterar as colunas originais**: ordem, delimitador (`,` `;` tab), aspas, quebras de linha e BOM são preservados.
 - Salva:
   - o **CSV completo** com rótulos;
-  - um **CSV só com as linhas de memes**, com ou sem as colunas `md_*`;
+  - um **CSV filtrado**, só com as linhas de memes, com ou sem as colunas `md_*`;
   - ou **filtra o próprio CSV original**, eliminando as linhas que não são memes, depois de pedir confirmação;
   - e, à parte, cria uma **pasta nova só com as imagens de memes**, onde você indicar: uma cópia das imagens classificadas como meme, mantendo as subpastas. Se 3.318 de 5.000 imagens forem memes, a pasta nova recebe só essas 3.318, e a pasta original continua com as 5.000.
+- Em **cada exportação** (CSV completo, CSV filtrado, filtrar o original, copiar imagens) você escolhe a **confiança**: todas as linhas classificadas (alta, média e baixa), só alta e média, ou **só alta**. Com filtro, linhas sem imagem ou com erro ficam de fora. Na cópia de imagens, vale o nível de cada imagem. O cartão mostra na hora quantas linhas ou imagens vão ser exportadas.
 - **Avaliação opcional:** se uma coluna já tem rótulos codificados à mão, o app calcula **acurácia, precisão, recall, F1** e a matriz de confusão, e exporta um relatório.
 - Tem **limiar ajustável**: mudar o limiar recalcula os rótulos na hora, sem analisar de novo.
 - Mostra o **comando equivalente no Terminal**, que dá o mesmo resultado para scripts e bases grandes.
@@ -77,6 +78,7 @@ O mesmo executável funciona como ferramenta de linha de comando, com a mesma l�
 | `--only-memes` · `--no-metrics` | Gravar só as linhas de memes e/ou omitir as colunas `md_*` |
 | `--truth COL` | Coluna com o rótulo verdadeiro: imprime a acurácia e grava `<saída>_avaliacao.csv` |
 | `--out ARQ` | CSV de saída. Pode ser o próprio `--csv`, para filtrar o original |
+| `--min-confidence N` | `alta`, `media` (alta e média) ou `baixa` (todas, padrão). Vale para o CSV gravado e para `--copy-memes` |
 | `--copy-memes PASTA` | Cria `PASTA` com uma cópia só das imagens classificadas como meme, mantendo as subpastas. A pasta precisa ser nova (ou vazia) e ficar fora da pasta de imagens |
 | `--concurrency N` | Imagens em paralelo (1–8, padrão 4) |
 

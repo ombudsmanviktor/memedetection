@@ -375,8 +375,8 @@ function renderRun() {
   $('rs-err').textContent = fmtInt(s.erro);
   $('rs-low').textContent = fmtInt(s.baixa);
   $('n-memes').textContent = fmtInt(s.meme);
-  state.memeImgs = MDCore.memeImages(state.plan, state.cache, state.threshold);
-  $('n-meme-imgs').textContent = fmtInt(state.memeImgs.length);
+  $('n-meme-imgs').textContent = fmtInt(MDCore.memeImages(state.plan, state.cache, state.threshold).length);
+  updateExportCounts();
   $('n-all-imgs').textContent = fmtInt(state.folder.files.filter(f => MDCore.IMG_EXT.test(f.name)).length);
   $('orig-name').textContent = state.csv.name;
   $('thr-val').textContent = fmtDec(state.threshold);
@@ -406,13 +406,36 @@ function renderRun() {
   renderEval();
 }
 
+/* ── Filtro de confiança por exportação ─────────────────────────────────── */
+const conf = id => $(id).value;   // 'baixa' (todas), 'media' ou 'alta'
+const CONF_LBL = { baixa: '', media: ' de confiança alta ou média', alta: ' de confiança alta' };
+function exportCounts() {
+  const rr = state.rowRes || [];
+  return {
+    all: MDCore.countRows(rr, { minConfidence: conf('conf-all') }),
+    memes: MDCore.countRows(rr, { onlyMemes: true, minConfidence: conf('conf-memes') }),
+    over: MDCore.countRows(rr, { onlyMemes: true, minConfidence: conf('conf-over') }),
+    copy: MDCore.memeImages(state.plan, state.cache, state.threshold, conf('conf-copy')).length
+  };
+}
+function updateExportCounts() {
+  if (!state.rowRes) return;
+  const c = state.exportCounts = exportCounts(), total = state.table.rows.length;
+  $('cnt-all').innerHTML = `Serão gravadas <strong>${fmtInt(c.all)}</strong> de ${fmtInt(total)} linhas${CONF_LBL[conf('conf-all')] ? ' (só as' + CONF_LBL[conf('conf-all')] + ')' : ''}.`;
+  $('cnt-memes').innerHTML = `Serão gravadas <strong>${fmtInt(c.memes)}</strong> linhas de memes${CONF_LBL[conf('conf-memes')]}.`;
+  $('cnt-over').innerHTML = `O original ficará com <strong>${fmtInt(c.over)}</strong> linhas de memes${CONF_LBL[conf('conf-over')]}.`;
+  $('cnt-copy').innerHTML = `Serão copiadas <strong>${fmtInt(c.copy)}</strong> imagens de memes${CONF_LBL[conf('conf-copy')]}.`;
+}
+
 function setSaveEnabled(on) {
-  ['btn-save-all', 'btn-save-memes', 'btn-overwrite', 'btn-copy-memes', 'thr-live', 'btn-eval-save'].forEach(id => $(id).disabled = !on || state.copying);
+  ['btn-save-all', 'btn-save-memes', 'btn-overwrite', 'btn-copy-memes', 'thr-live', 'btn-eval-save',
+   'conf-all', 'conf-memes', 'conf-copy', 'conf-over'].forEach(id => $(id).disabled = !on || state.copying);
   if (on) {
-    const n = MDCore.summarize(state.rowRes || []).meme;
-    $('btn-save-memes').disabled = !n || state.copying;
-    $('btn-overwrite').disabled = !n || state.copying;
-    $('btn-copy-memes').disabled = !(state.memeImgs && state.memeImgs.length) || state.copying;
+    const c = state.exportCounts || exportCounts();
+    $('btn-save-all').disabled = !c.all || state.copying;
+    $('btn-save-memes').disabled = !c.memes || state.copying;
+    $('btn-overwrite').disabled = !c.over || state.copying;
+    $('btn-copy-memes').disabled = !c.copy || state.copying;
   }
 }
 
@@ -484,22 +507,22 @@ async function doSave(kind) {
   const rr = computeRowRes();
   try {
     if (kind === 'all') {
-      const out = MDCore.outputCSV(state.table, state.plan, rr, { onlyMemes: false, includeMetrics: true });
+      const out = MDCore.outputCSV(state.table, state.plan, rr, { onlyMemes: false, includeMetrics: true, minConfidence: conf('conf-all') });
       const res = await call('saveCSV', { text: out.text, bom: out.bom, name: csvStem() + '_memedetection.csv', dir: state.csv.dir, message: 'Salvar o CSV com rótulos e métricas' });
       if (res) savedBanner(res.path, `CSV com ${fmtInt(out.count)} linhas`);
     } else if (kind === 'memes') {
-      const out = MDCore.outputCSV(state.table, state.plan, rr, { onlyMemes: true, includeMetrics: $('keep-metrics').checked });
+      const out = MDCore.outputCSV(state.table, state.plan, rr, { onlyMemes: true, includeMetrics: $('keep-metrics').checked, minConfidence: conf('conf-memes') });
       const res = await call('saveCSV', { text: out.text, bom: out.bom, name: csvStem() + '_memes.csv', dir: state.csv.dir, message: 'Salvar só as linhas rotuladas como meme' });
-      if (res) savedBanner(res.path, `CSV só com memes (${fmtInt(out.count)} linhas)`);
+      if (res) savedBanner(res.path, `CSV filtrado com ${fmtInt(out.count)} linhas de memes${CONF_LBL[conf('conf-memes')]}`);
     } else if (kind === 'overwrite') {
-      const out = MDCore.outputCSV(state.table, state.plan, rr, { onlyMemes: true, includeMetrics: $('keep-metrics').checked });
+      const out = MDCore.outputCSV(state.table, state.plan, rr, { onlyMemes: true, includeMetrics: $('keep-metrics').checked, minConfidence: conf('conf-over') });
       const total = state.table.rows.length;
-      const detail = `“${state.csv.name}” será sobrescrito e ficará só com as ${fmtInt(out.count)} linhas rotuladas como meme, de ${fmtInt(total)}. As outras ${fmtInt(total - out.count)} linhas serão eliminadas` +
+      const detail = `“${state.csv.name}” será sobrescrito e ficará só com as ${fmtInt(out.count)} linhas rotuladas como meme${CONF_LBL[conf('conf-over')]}, de ${fmtInt(total)}. As outras ${fmtInt(total - out.count)} linhas serão eliminadas` +
         `${$('keep-metrics').checked ? ', e as colunas md_* serão acrescentadas' : ''}. Esta ação não pode ser desfeita.`;
       const res = await call('overwriteCSV', { text: out.text, bom: out.bom, path: state.csv.path, detail });
       if (res) savedBanner(res.path, `CSV original filtrado (${fmtInt(out.count)} linhas)`);
     } else if (kind === 'copy') {
-      const files = MDCore.memeImages(state.plan, state.cache, state.threshold);
+      const files = MDCore.memeImages(state.plan, state.cache, state.threshold, conf('conf-copy'));
       if (!files.length) return;
       state.copying = true; setSaveEnabled(true);
       $('copy-progress').style.display = 'none';
@@ -589,6 +612,11 @@ async function init() {
     renderRun(); setSaveEnabled(state.run.finished); renderCmd();
   });
   $('keep-metrics').addEventListener('change', () => renderCmd());
+  document.querySelectorAll('.conf-sel').forEach(sel => sel.addEventListener('change', () => {
+    if (sel.id === 'conf-copy') $('copy-progress').style.display = 'none';
+    updateExportCounts();
+    if (state.run && state.run.finished) setSaveEnabled(true);
+  }));
   $('btn-save-all').addEventListener('click', () => doSave('all'));
   $('btn-save-memes').addEventListener('click', () => doSave('memes'));
   $('btn-overwrite').addEventListener('click', () => doSave('overwrite'));

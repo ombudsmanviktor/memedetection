@@ -21,6 +21,9 @@ enum CLI {
       --threshold X        limiar de P(meme) para rotular como meme (padrão 0.5)
       --only-memes         grava só as linhas rotuladas como meme
       --no-metrics         não acrescenta as colunas md_* (útil com --only-memes)
+      --min-confidence N   exporta só linhas (e copia só imagens) com confiança
+                           alta, media (alta e média) ou baixa (todas, padrão);
+                           com alta ou media, linhas sem imagem ou com erro saem
       --truth COL          coluna com o rótulo verdadeiro: calcula acurácia, precisão,
                            recall e F1 e grava <saída>_avaliacao.csv
       --out ARQ            CSV de saída (padrão: <csv>_memedetection.csv ou
@@ -47,7 +50,7 @@ enum CLI {
     static func run(_ args: [String]) -> Int32 {
         var opt = [String: String](), flags = Set<String>()
         var i = 0
-        let valued: Set<String> = ["--csv", "--images", "--column", "--mode", "--threshold", "--truth", "--out", "--concurrency", "--copy-memes"]
+        let valued: Set<String> = ["--csv", "--images", "--column", "--mode", "--threshold", "--truth", "--out", "--concurrency", "--copy-memes", "--min-confidence"]
         while i < args.count {
             let a = args[i]
             if valued.contains(a) {
@@ -72,6 +75,8 @@ enum CLI {
         let onlyMemes = flags.contains("--only-memes"), quiet = flags.contains("--quiet")
         let concurrency = Int(opt["--concurrency"] ?? "4") ?? 4
         if let m = opt["--mode"], !["file", "id", "auto"].contains(m) { return fail("--mode deve ser file, id ou auto") }
+        let minConf = (opt["--min-confidence"] ?? "baixa").lowercased().replacingOccurrences(of: "é", with: "e")
+        guard ["alta", "media", "baixa"].contains(minConf) else { return fail("--min-confidence deve ser alta, media ou baixa") }
 
         let copyURL = opt["--copy-memes"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
         if let c = copyURL, let problem = ImageCopy.validate(source: imgURL, destination: c) { return fail(problem) }
@@ -101,7 +106,7 @@ enum CLI {
         }
 
         var opts: [String: Any] = ["threshold": threshold, "onlyMemes": onlyMemes,
-                                   "includeMetrics": !flags.contains("--no-metrics"), "csvName": csvURL.lastPathComponent, "bom": csvBOM]
+                                   "includeMetrics": !flags.contains("--no-metrics"), "csvName": csvURL.lastPathComponent, "bom": csvBOM, "minConfidence": minConf]
         if let c = opt["--column"] { opts["column"] = c }
         if let m = opt["--mode"] { opts["mode"] = m }
         if let t = opt["--truth"] { opts["truth"] = t }

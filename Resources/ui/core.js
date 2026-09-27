@@ -6,7 +6,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '1.1.1';
+  const VERSION = '1.2.0';
   const MODEL_VAL_ACCURACY = 0.91;      // declarada no README do modelo (Bohacek, 2020)
   const ROWNUM = '#linha';              // pseudo-coluna: número da linha (1 = primeira linha de dados)
   const MD_FIELDS = ['md_rotulo', 'md_prob_meme', 'md_confianca', 'md_logit', 'md_nivel_confianca',
@@ -207,12 +207,32 @@
   }
 
   // opts: {onlyMemes, includeMetrics}
+  /* Filtro de confiança das exportações. minConfidence: 'baixa' (todas as
+     linhas, padrão), 'media' (alta e média) ou 'alta' (só alta). Com filtro,
+     linhas sem imagem ou com erro ficam de fora: elas não têm classificação. */
+  const CONF_RANK = { 'baixa': 0, 'média': 1, 'alta': 2 };
+  function normMinConf(m) {
+    const s = String(m || 'baixa').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return s === 'alta' ? 'alta' : s === 'media' ? 'média' : 'baixa';
+  }
+  function passesConf(level, minConfidence) {
+    const min = normMinConf(minConfidence);
+    if (min === 'baixa') return true;
+    return !!level && CONF_RANK[level] >= CONF_RANK[min];
+  }
+  function keepRow(r, opts) {
+    if (opts.onlyMemes && r.label !== 'meme') return false;
+    return passesConf(r.level, opts.minConfidence);
+  }
+  function countRows(rowRes, opts) { return rowRes.reduce((n, r) => n + (keepRow(r, opts) ? 1 : 0), 0); }
+
+  // opts: {onlyMemes, includeMetrics, minConfidence}
   function outputCSV(table, plan, rowRes, opts) {
     const include = opts.includeMetrics !== false;
     const header = include ? table.header.concat(MD_FIELDS) : table.header.slice();
     const rows = [];
     table.rows.forEach((r, i) => {
-      if (opts.onlyMemes && rowRes[i].label !== 'meme') return;
+      if (!keepRow(rowRes[i], opts)) return;
       rows.push(include ? r.concat(mdValues(rowRes[i], plan.rowFiles[i])) : r);
     });
     return { text: toCSV(table, header, rows), count: rows.length, bom: table.bom };
@@ -220,11 +240,12 @@
 
   // Imagens classificadas como meme (nível da imagem, não da linha), sem
   // repetição, na ordem em que aparecem no CSV. Usado para copiar só os memes.
-  function memeImages(plan, results, threshold) {
+  // minConfidence usa o nível de confiança de cada imagem (não o da linha).
+  function memeImages(plan, results, threshold, minConfidence) {
     const out = [];
     for (const f of plan.images) {
       const r = results.get(f);
-      if (r && !r.error && r.p >= threshold) out.push(f);
+      if (r && !r.error && r.p >= threshold && passesConf(confidenceLevel(r.logit, threshold), minConfidence)) out.push(f);
     }
     return out;
   }
@@ -279,6 +300,7 @@
     if (o.truth) parts.push('--truth', shq(o.truth));
     if (o.onlyMemes) parts.push('--only-memes');
     if (o.includeMetrics === false) parts.push('--no-metrics');
+    if (o.minConfidence && normMinConf(o.minConfidence) !== 'baixa') parts.push('--min-confidence', normMinConf(o.minConfidence) === 'alta' ? 'alta' : 'media');
     if (o.copyMemes) parts.push('--copy-memes', shq(o.copyMemes));
     parts.push('--out', shq(o.out));
     return parts.join(' \\\n  ');
@@ -319,9 +341,9 @@
       const results = new Map(Object.entries(JSON.parse(resultsJSON)));
       const threshold = opts.threshold ?? 0.5;
       const rowRes = computeRows(plan, results, threshold);
-      const out = outputCSV(table, plan, rowRes, { onlyMemes: !!opts.onlyMemes, includeMetrics: opts.includeMetrics !== false });
+      const out = outputCSV(table, plan, rowRes, { onlyMemes: !!opts.onlyMemes, includeMetrics: opts.includeMetrics !== false, minConfidence: opts.minConfidence });
       const res = { csv: out.text, bom: out.bom, written: out.count, summary: summarize(rowRes),
-                    memeImages: memeImages(plan, results, threshold) };
+                    memeImages: memeImages(plan, results, threshold, opts.minConfidence) };
       if (truth !== null) {
         const ev = evaluate(table, rowRes, truth);
         res.evaluation = ev;
@@ -335,6 +357,6 @@
     VERSION, MODEL_VAL_ACCURACY, ROWNUM, MD_FIELDS, IMG_EXT,
     isEmptyCell, cleanName, baseName, logitOf,
     parseCSV, toCSV, indexFiles, analyzeLinks, planRun, linkRows,
-    computeRows, outputCSV, summarize, memeImages, confidenceLevel, truthOf, evaluate, evaluationCSV, cliCommand, cli
+    computeRows, outputCSV, summarize, memeImages, passesConf, countRows, normMinConf, confidenceLevel, truthOf, evaluate, evaluationCSV, cliCommand, cli
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

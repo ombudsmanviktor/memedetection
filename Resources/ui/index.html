@@ -199,27 +199,36 @@
           <span class="range-val" id="thr-val">0,50</span>
           <span style="font-size:.78rem;color:var(--ink-muted)">muda os rótulos na hora, sem analisar de novo</span>
         </div>
+        <p class="panel-hint" style="margin:-.4rem 0 1rem">Em cada exportação, escolha se entram todas as linhas classificadas ou só as de confiança <strong>alta</strong> (ou alta e média). O nível vem da distância entre o log-odds e o limiar. Com filtro, linhas sem imagem ou com erro ficam de fora. Na cópia de imagens, vale o nível de cada imagem.</p>
         <div class="save-grid">
           <div class="save-card">
             <h4>CSV completo com rótulos</h4>
             <p>Todas as linhas do CSV original, na mesma ordem e com as mesmas colunas, seguidas das colunas <code>md_*</code>: rótulo, probabilidade, confiança, log-odds, nível de confiança, arquivos e erros.</p>
+            <label class="conf-row" for="conf-all">Confiança <select class="input conf-sel" id="conf-all"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
+            <span class="conf-count" id="cnt-all"></span>
             <button class="btn btn-primary" id="btn-save-all">💾 Salvar CSV…</button>
           </div>
           <div class="save-card">
             <h4>Só as linhas de memes</h4>
             <p>Um CSV novo só com as linhas rotuladas como <strong>meme</strong> (<span id="n-memes">0</span>). O arquivo original não é alterado.</p>
             <label class="radio-row" style="font-size:.8rem"><input type="checkbox" id="keep-metrics" checked> Incluir as colunas <code>md_*</code></label>
-            <button class="btn btn-ghost" id="btn-save-memes">💾 Salvar só memes…</button>
+            <label class="conf-row" for="conf-memes">Confiança <select class="input conf-sel" id="conf-memes"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
+            <span class="conf-count" id="cnt-memes"></span>
+            <button class="btn btn-ghost" id="btn-save-memes">💾 Salvar CSV filtrado…</button>
           </div>
           <div class="save-card">
             <h4>Pasta só com as imagens de memes</h4>
             <p>Cria uma pasta nova, onde você indicar, com uma cópia das <strong id="n-meme-imgs">0</strong> imagens classificadas como meme, mantendo as subpastas. A pasta original, com todas as <span id="n-all-imgs">0</span> imagens, não é alterada.</p>
+            <label class="conf-row" for="conf-copy">Confiança <select class="input conf-sel" id="conf-copy"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
+            <span class="conf-count" id="cnt-copy"></span>
             <p class="panel-hint" id="copy-progress" style="display:none;flex:0"></p>
             <button class="btn btn-ghost" id="btn-copy-memes">📁 Copiar imagens de memes…</button>
           </div>
           <div class="save-card">
             <h4>Filtrar o CSV original</h4>
             <p>Sobrescreve <strong id="orig-name"></strong>, mantendo só as linhas de memes e eliminando as demais. Pede confirmação e não pode ser desfeito.</p>
+            <label class="conf-row" for="conf-over">Confiança <select class="input conf-sel" id="conf-over"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
+            <span class="conf-count" id="cnt-over"></span>
             <button class="btn btn-danger" id="btn-overwrite">Substituir o original…</button>
           </div>
         </div>

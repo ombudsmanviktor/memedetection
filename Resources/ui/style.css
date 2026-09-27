@@ -341,3 +341,7 @@ details.rbox[open] > summary .chev { transform: rotate(90deg); }
 .model-line .dot.err { background: var(--c-l); }
 .table-note { font-size: 0.76rem; color: var(--ink-muted); padding: 0.5rem 0.8rem; }
 .app-shell { min-height: calc(100vh - 80px); }
+.conf-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--ink-mid); font-weight: 600; flex-wrap: wrap; }
+.conf-row .conf-sel { width: auto; flex: 1; min-width: 150px; max-width: 220px; padding: 0.25rem 0.5rem; font-size: 0.8rem; font-weight: 400; }
+.conf-count { font-size: 0.76rem; color: var(--ink-muted); }
+.conf-count strong { color: var(--ink); }
