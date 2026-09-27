@@ -74,6 +74,12 @@ const mockBridge = (() => {
           }
           return out;
         }
+        case 'copyMemeImages': {
+          for (let i = 1; i <= a.files.length; i++) {
+            if (i % 25 === 0 || i === a.files.length) { window.mdNativeEvent('copy', { done: i, total: a.files.length }); await new Promise(r => setTimeout(r, 20)); }
+          }
+          return { path: '/simulado/' + (a.name || 'memes'), copied: a.files.length, failed: [] };
+        }
         case 'saveCSV': case 'overwriteCSV': {
           if (cmd === 'overwriteCSV' && !confirm(a.detail)) return null;
           const name = a.name || a.path.split('/').pop();
@@ -177,6 +183,12 @@ async function pickFolder() { try { setFolder(await call('pickFolder')); } catch
 
 // Eventos nativos (arrastar do Finder)
 window.mdNativeEvent = async (type, data) => {
+  if (type === 'copy') {
+    const el = $('copy-progress');
+    el.style.display = '';
+    el.textContent = `Copiando… ${fmtInt(data.done)} de ${fmtInt(data.total)}`;
+    return;
+  }
   if (type === 'drag') {
     ['dz-csv', 'dz-folder'].forEach(id => $(id).classList.toggle('drag-over', !!data.on));
   } else if (type === 'drop') {
@@ -361,6 +373,9 @@ function renderRun() {
   $('rs-err').textContent = fmtInt(s.erro);
   $('rs-low').textContent = fmtInt(s.baixa);
   $('n-memes').textContent = fmtInt(s.meme);
+  state.memeImgs = MDCore.memeImages(state.plan, state.cache, state.threshold);
+  $('n-meme-imgs').textContent = fmtInt(state.memeImgs.length);
+  $('n-all-imgs').textContent = fmtInt(state.folder.files.filter(f => MDCore.IMG_EXT.test(f.name)).length);
   $('orig-name').textContent = state.csv.name;
   $('thr-val').textContent = fmtDec(state.threshold);
 
@@ -390,11 +405,12 @@ function renderRun() {
 }
 
 function setSaveEnabled(on) {
-  ['btn-save-all', 'btn-save-memes', 'btn-overwrite', 'thr-live', 'btn-eval-save'].forEach(id => $(id).disabled = !on);
+  ['btn-save-all', 'btn-save-memes', 'btn-overwrite', 'btn-copy-memes', 'thr-live', 'btn-eval-save'].forEach(id => $(id).disabled = !on || state.copying);
   if (on) {
     const n = MDCore.summarize(state.rowRes || []).meme;
-    $('btn-save-memes').disabled = !n;
-    $('btn-overwrite').disabled = !n;
+    $('btn-save-memes').disabled = !n || state.copying;
+    $('btn-overwrite').disabled = !n || state.copying;
+    $('btn-copy-memes').disabled = !(state.memeImgs && state.memeImgs.length) || state.copying;
   }
 }
 
@@ -456,9 +472,9 @@ function cancelRun() {
 }
 
 /* ── Salvar ─────────────────────────────────────────────────────────────── */
-function savedBanner(path, what) {
+function savedBanner(path, what, verb = 'gravado em') {
   const reveal = NATIVE ? ` <button class="btn-small" id="btn-reveal">Mostrar no Finder</button>` : '';
-  showBanner('saved', `✓ ${what} gravado em <code>${esc(path)}</code>${reveal}`);
+  showBanner('saved', `✓ ${what} ${verb} <code>${esc(path)}</code>${reveal}`);
   if (NATIVE) $('btn-reveal').addEventListener('click', () => call('reveal', { path }));
 }
 async function doSave(kind) {
@@ -480,6 +496,23 @@ async function doSave(kind) {
         `${$('keep-metrics').checked ? ', e as colunas md_* serão acrescentadas' : ''}. Esta ação não pode ser desfeita.`;
       const res = await call('overwriteCSV', { text: out.text, bom: out.bom, path: state.csv.path, detail });
       if (res) savedBanner(res.path, `CSV original filtrado (${fmtInt(out.count)} linhas)`);
+    } else if (kind === 'copy') {
+      const files = MDCore.memeImages(state.plan, state.cache, state.threshold);
+      if (!files.length) return;
+      state.copying = true; setSaveEnabled(true);
+      $('copy-progress').style.display = 'none';
+      try {
+        const res = await call('copyMemeImages', { root: state.folder.path, files, name: state.folder.name + '_memes' });
+        if (res) {
+          savedBanner(res.path, `Pasta com ${fmtInt(res.copied)} imagens de memes`, 'criada em');
+          $('copy-progress').style.display = '';
+          $('copy-progress').textContent = `✓ ${fmtInt(res.copied)} imagens copiadas.`;
+          if (res.failed && res.failed.length) {
+            showBanner('error-run', `<strong>${fmtInt(res.failed.length)} imagens não puderam ser copiadas:</strong><br>` +
+              res.failed.slice(0, 5).map(f => '• ' + esc(f)).join('<br>'));
+          }
+        }
+      } finally { state.copying = false; setSaveEnabled(true); }
     } else if (kind === 'eval') {
       const text = MDCore.evaluationCSV(state.eval, { csv: state.csv.name, truth: state.table.header[state.truthCol], threshold: state.threshold });
       const res = await call('saveCSV', { text, name: csvStem() + '_memedetection_avaliacao.csv', dir: state.csv.dir, message: 'Salvar o relatório de avaliação' });
@@ -550,6 +583,7 @@ async function init() {
   $('thr-live').addEventListener('input', e => {
     state.threshold = clampThr(parseFloat(e.target.value));
     $('threshold').value = String(state.threshold);
+    $('copy-progress').style.display = 'none';
     renderRun(); setSaveEnabled(state.run.finished); renderCmd();
   });
   $('keep-metrics').addEventListener('change', () => renderCmd());
@@ -557,6 +591,7 @@ async function init() {
   $('btn-save-memes').addEventListener('click', () => doSave('memes'));
   $('btn-overwrite').addEventListener('click', () => doSave('overwrite'));
   $('btn-eval-save').addEventListener('click', () => doSave('eval'));
+  $('btn-copy-memes').addEventListener('click', () => doSave('copy'));
   document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
     resFilter = b.dataset.filter; renderResults();

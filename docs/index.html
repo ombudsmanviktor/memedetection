@@ -73,7 +73,7 @@
     <div class="steps">
       <div class="step-card"><h3><span class="step-dot">1</span>Arquivos</h3><p>Escolha ou arraste o CSV e a pasta de imagens. Subpastas são incluídas. Bases baixadas com o <a href="https://wgetlab.colab.meme/">WgetLAB</a> funcionam direto.</p></div>
       <div class="step-card"><h3><span class="step-dot">2</span>Configurar</h3><p>O app descobre qual coluna liga cada linha às imagens, pelo nome do arquivo ou pelo ID (<code>123.jpg</code>, <code>123_1.jpg</code>…). Opcionalmente, indique uma coluna com rótulos conhecidos para medir a acurácia.</p></div>
-      <div class="step-card"><h3><span class="step-dot">3</span>Resultados</h3><p>Salve o CSV completo com rótulos, um CSV só com as linhas de memes ou filtre o próprio arquivo original. O limiar pode ser ajustado sem analisar de novo.</p></div>
+      <div class="step-card"><h3><span class="step-dot">3</span>Resultados</h3><p>Salve o CSV completo com rótulos, um CSV só com as linhas de memes ou filtre o próprio arquivo original. Também dá para criar uma pasta nova só com as imagens de memes, sem tocar na original. O limiar pode ser ajustado sem analisar de novo.</p></div>
     </div>
     <img class="shot" src="img/resultados.png" alt="Tabela de resultados por linha, com miniaturas, rótulo, probabilidade de meme, log-odds e nível de confiança" style="margin-top:1.4rem" loading="lazy" width="1400" height="1025">
 
@@ -98,6 +98,11 @@
       <p>Se você indicar uma coluna com rótulos codificados à mão (<code>meme</code>/<code>foto</code>, <code>1</code>/<code>0</code>, <code>sim</code>/<code>não</code>…), o app calcula <strong>acurácia, precisão, recall e F1</strong>, mostra a matriz de confusão e exporta um relatório em CSV.</p>
     </div>
 
+    <h2>Separar as imagens de memes</h2>
+    <div class="prose">
+      <p>Terminada a análise, o botão <strong>Copiar imagens de memes</strong> cria uma pasta nova, no lugar que você indicar, com uma cópia só das imagens classificadas como meme, mantendo as subpastas. Se 3.318 de 5.000 imagens forem memes, a pasta nova recebe essas 3.318, e o corpus original continua intacto, com as 5.000. Em discos APFS, a cópia é instantânea e não ocupa espaço extra. Pelo Terminal, use <code>--copy-memes PASTA</code>.</p>
+    </div>
+
     <h2 id="instalar">Instalar e abrir pela primeira vez</h2>
     <div class="prose">
       <ol>
@@ -114,7 +119,7 @@
       <div class="code-block">/Applications/MemeDetection.app/Contents/MacOS/MemeDetection \
   --csv ~/pesquisa/posts.csv --images ~/pesquisa/imagens \
   --only-memes --out ~/pesquisa/posts_memes.csv</div>
-      <p>Outras opções: <code>--column</code>, <code>--mode file|id</code>, <code>--threshold</code>, <code>--truth</code>, <code>--no-metrics</code>, <code>--concurrency</code>. Veja <code>--help</code> ou o <a href="https://github.com/ombudsmanviktor/memedetection#usar-pelo-terminal">README</a>.</p>
+      <p>Outras opções: <code>--copy-memes</code>, <code>--column</code>, <code>--mode file|id</code>, <code>--threshold</code>, <code>--truth</code>, <code>--no-metrics</code>, <code>--concurrency</code>. Veja <code>--help</code> ou o <a href="https://github.com/ombudsmanviktor/memedetection#usar-pelo-terminal">README</a>.</p>
     </div>
 
     <h2 id="modelo">O modelo</h2>

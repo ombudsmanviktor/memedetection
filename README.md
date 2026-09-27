@@ -22,7 +22,8 @@ A classificação usa o modelo **[meme-detection](https://github.com/maty-bohace
 - Salva:
   - o **CSV completo** com rótulos;
   - um **CSV só com as linhas de memes**, com ou sem as colunas `md_*`;
-  - ou **filtra o próprio CSV original**, eliminando as linhas que não são memes, depois de pedir confirmação.
+  - ou **filtra o próprio CSV original**, eliminando as linhas que não são memes, depois de pedir confirmação;
+  - e, à parte, cria uma **pasta nova só com as imagens de memes**, onde você indicar: uma cópia das imagens classificadas como meme, mantendo as subpastas. Se 3.318 de 5.000 imagens forem memes, a pasta nova recebe só essas 3.318, e a pasta original continua com as 5.000.
 - **Avaliação opcional:** se uma coluna já tem rótulos codificados à mão, o app calcula **acurácia, precisão, recall, F1** e a matriz de confusão, e exporta um relatório.
 - Tem **limiar ajustável**: mudar o limiar recalcula os rótulos na hora, sem analisar de novo.
 - Mostra o **comando equivalente no Terminal**, que dá o mesmo resultado para scripts e bases grandes.
@@ -76,6 +77,7 @@ O mesmo executável funciona como ferramenta de linha de comando, com a mesma l�
 | `--only-memes` · `--no-metrics` | Gravar só as linhas de memes e/ou omitir as colunas `md_*` |
 | `--truth COL` | Coluna com o rótulo verdadeiro: imprime a acurácia e grava `<saída>_avaliacao.csv` |
 | `--out ARQ` | CSV de saída. Pode ser o próprio `--csv`, para filtrar o original |
+| `--copy-memes PASTA` | Cria `PASTA` com uma cópia só das imagens classificadas como meme, mantendo as subpastas. A pasta precisa ser nova (ou vazia) e ficar fora da pasta de imagens |
 | `--concurrency N` | Imagens em paralelo (1–8, padrão 4) |
 
 ---
@@ -88,7 +90,7 @@ O `.mlmodel` do HEAD do repositório original **não é o detector de memes**: �
 
 ## Privacidade
 
-O CSV e as imagens são lidos direto do disco e analisados localmente. O app não faz nenhuma conexão de rede: não há servidor, telemetria nem cookies. Os arquivos só são gravados onde você escolher, e o CSV original só é alterado se você pedir e confirmar.
+O CSV e as imagens são lidos direto do disco e analisados localmente. O app não faz nenhuma conexão de rede: não há servidor, telemetria nem cookies. Os arquivos só são gravados onde você escolher, e o CSV original só é alterado se você pedir e confirmar. A pasta original de imagens nunca é alterada: a opção de separar os memes grava uma **cópia** numa pasta nova. Em discos APFS, o padrão dos Macs, a cópia é um clone instantâneo, que não ocupa espaço extra enquanto os arquivos não forem modificados.
 
 ---
 

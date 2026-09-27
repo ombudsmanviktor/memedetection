@@ -208,6 +208,12 @@
             <button class="btn btn-ghost" id="btn-save-memes">💾 Salvar só memes…</button>
           </div>
           <div class="save-card">
+            <h4>Pasta só com as imagens de memes</h4>
+            <p>Cria uma pasta nova, onde você indicar, com uma cópia das <strong id="n-meme-imgs">0</strong> imagens classificadas como meme, mantendo as subpastas. A pasta original, com todas as <span id="n-all-imgs">0</span> imagens, não é alterada.</p>
+            <p class="panel-hint" id="copy-progress" style="display:none;flex:0"></p>
+            <button class="btn btn-ghost" id="btn-copy-memes">📁 Copiar imagens de memes…</button>
+          </div>
+          <div class="save-card">
             <h4>Filtrar o CSV original</h4>
             <p>Sobrescreve <strong id="orig-name"></strong>, mantendo só as linhas de memes e eliminando as demais. Pede confirmação e não pode ser desfeito.</p>
             <button class="btn btn-danger" id="btn-overwrite">Substituir o original…</button>

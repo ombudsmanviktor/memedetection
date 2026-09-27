@@ -218,6 +218,17 @@
     return { text: toCSV(table, header, rows), count: rows.length, bom: table.bom };
   }
 
+  // Imagens classificadas como meme (nível da imagem, não da linha), sem
+  // repetição, na ordem em que aparecem no CSV. Usado para copiar só os memes.
+  function memeImages(plan, results, threshold) {
+    const out = [];
+    for (const f of plan.images) {
+      const r = results.get(f);
+      if (r && !r.error && r.p >= threshold) out.push(f);
+    }
+    return out;
+  }
+
   function summarize(rowRes) {
     const s = { meme: 0, foto: 0, sem_imagem: 0, erro: 0, baixa: 0 };
     for (const r of rowRes) { s[r.label]++; if (r.level === 'baixa') s.baixa++; }
@@ -268,6 +279,7 @@
     if (o.truth) parts.push('--truth', shq(o.truth));
     if (o.onlyMemes) parts.push('--only-memes');
     if (o.includeMetrics === false) parts.push('--no-metrics');
+    if (o.copyMemes) parts.push('--copy-memes', shq(o.copyMemes));
     parts.push('--out', shq(o.out));
     return parts.join(' \\\n  ');
   }
@@ -308,7 +320,8 @@
       const threshold = opts.threshold ?? 0.5;
       const rowRes = computeRows(plan, results, threshold);
       const out = outputCSV(table, plan, rowRes, { onlyMemes: !!opts.onlyMemes, includeMetrics: opts.includeMetrics !== false });
-      const res = { csv: out.text, bom: out.bom, written: out.count, summary: summarize(rowRes) };
+      const res = { csv: out.text, bom: out.bom, written: out.count, summary: summarize(rowRes),
+                    memeImages: memeImages(plan, results, threshold) };
       if (truth !== null) {
         const ev = evaluate(table, rowRes, truth);
         res.evaluation = ev;
@@ -322,6 +335,6 @@
     VERSION, MODEL_VAL_ACCURACY, ROWNUM, MD_FIELDS, IMG_EXT,
     isEmptyCell, cleanName, baseName, logitOf,
     parseCSV, toCSV, indexFiles, analyzeLinks, planRun, linkRows,
-    computeRows, outputCSV, summarize, confidenceLevel, truthOf, evaluate, evaluationCSV, cliCommand, cli
+    computeRows, outputCSV, summarize, memeImages, confidenceLevel, truthOf, evaluate, evaluationCSV, cliCommand, cli
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

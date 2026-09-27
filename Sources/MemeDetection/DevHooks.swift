@@ -7,6 +7,14 @@ import WebKit
 /// salvar um snapshot da janela e encerrar. Serve para testar a ponte JS↔Swift
 /// sem precisar clicar.
 enum DevHooks {
+    /// MD_AUTOTEST_COPYTO=<pasta>: no teste, "Copiar imagens de memes" usa essa
+    /// pasta em vez de abrir o diálogo de salvar.
+    static var copyDestination: URL? {
+        guard ProcessInfo.processInfo.environment["MD_AUTOTEST"] != nil,
+              let p = ProcessInfo.processInfo.environment["MD_AUTOTEST_COPYTO"] else { return nil }
+        return URL(fileURLWithPath: p)
+    }
+
     static func runIfRequested(_ bridge: Bridge, _ webView: WKWebView) {
         guard let spec = ProcessInfo.processInfo.environment["MD_AUTOTEST"] else { return }
         let parts = spec.components(separatedBy: "|")
@@ -29,8 +37,10 @@ enum DevHooks {
                    if (el) el.scrollIntoView(); else window.scrollTo(0, 0);
                    await new Promise(r => setTimeout(r, 600));
                    const s = MDCore.summarize(state.rowRes);
+                   if (\(copyDestination != nil ? "true" : "false")) { await doSave('copy'); await new Promise(r => setTimeout(r, 500)); }
+                   const saved = document.getElementById('saved').textContent + ' ' + document.getElementById('error-run').textContent;
                    return JSON.stringify({ step1: document.getElementById('csv-meta').textContent + ' / ' + document.getElementById('folder-meta').textContent,
-                     model: document.getElementById('model-line').textContent, summary: s,
+                     model: document.getElementById('model-line').textContent, summary: s, saved,
                      thumbs: [...document.querySelectorAll('img.thumb')].map(i => i.naturalWidth).slice(0, 8),
                      rows: state.rowRes.map(r => [r.label, r.p, r.level]) });
                    """) { v in

@@ -308,7 +308,8 @@ details.rbox[open] > summary .chev { transform: rotate(90deg); }
 .stat.meme .stat-val { color: var(--c-m); }
 .stat.foto .stat-val { color: var(--c-h); }
 .stat.low .stat-val { color: var(--c-l); }
-.save-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+.save-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+@media (max-width: 700px) { .save-grid { grid-template-columns: 1fr; } }
 .save-card { border: 1px solid var(--border-soft); border-radius: 8px; padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.55rem; background: var(--bg); }
 .save-card h4 { font-size: 0.86rem; color: var(--ink); }
 .save-card p { font-size: 0.78rem; color: var(--ink-muted); line-height: 1.5; flex: 1; }

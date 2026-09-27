@@ -25,6 +25,9 @@ enum CLI {
                            recall e F1 e grava <saída>_avaliacao.csv
       --out ARQ            CSV de saída (padrão: <csv>_memedetection.csv ou
                            <csv>_memes.csv com --only-memes). Pode ser o próprio --csv
+      --copy-memes PASTA   cria PASTA (nova ou vazia, fora da pasta de imagens) com uma
+                           cópia só das imagens classificadas como meme, mantendo as
+                           subpastas; a pasta original não é alterada
       --concurrency N      imagens analisadas em paralelo (1–8, padrão 4)
       --quiet              sem progresso no terminal
       --help, --version
@@ -44,7 +47,7 @@ enum CLI {
     static func run(_ args: [String]) -> Int32 {
         var opt = [String: String](), flags = Set<String>()
         var i = 0
-        let valued: Set<String> = ["--csv", "--images", "--column", "--mode", "--threshold", "--truth", "--out", "--concurrency"]
+        let valued: Set<String> = ["--csv", "--images", "--column", "--mode", "--threshold", "--truth", "--out", "--concurrency", "--copy-memes"]
         while i < args.count {
             let a = args[i]
             if valued.contains(a) {
@@ -69,6 +72,9 @@ enum CLI {
         let onlyMemes = flags.contains("--only-memes"), quiet = flags.contains("--quiet")
         let concurrency = Int(opt["--concurrency"] ?? "4") ?? 4
         if let m = opt["--mode"], !["file", "id", "auto"].contains(m) { return fail("--mode deve ser file, id ou auto") }
+
+        let copyURL = opt["--copy-memes"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
+        if let c = copyURL, let problem = ImageCopy.validate(source: imgURL, destination: c) { return fail(problem) }
 
         let csvText: String, csvBOM: Bool
         do { (csvText, csvBOM) = try TextFile.read(csvURL) } catch { return fail("não foi possível ler \(csvURL.path): \(error.localizedDescription)") }
@@ -133,6 +139,17 @@ enum CLI {
         log(String(format: "Concluído em %.1f s · memes: %@ · fotos: %@ · sem imagem: %@ · erros: %@ · baixa confiança: %@",
                    Date().timeIntervalSince(started), "\(s["meme"] ?? 0)", "\(s["foto"] ?? 0)", "\(s["sem_imagem"] ?? 0)", "\(s["erro"] ?? 0)", "\(s["baixa"] ?? 0)"))
         log("Gravado: \(outURL.path) (\(res["written"] ?? 0) linhas)")
+        if let dest = copyURL {
+            let memes = res["memeImages"] as? [String] ?? []
+            do {
+                let r = try ImageCopy.copy(files: memes, from: imgURL, to: dest) { done, total in
+                    if !quiet { FileHandle.standardError.write("\r[\(done)/\(total)] copiando imagens de memes…".data(using: .utf8)!) }
+                }
+                if !quiet && !memes.isEmpty { FileHandle.standardError.write("\n".data(using: .utf8)!) }
+                log("Copiadas \(r.copied) imagens de memes para \(dest.path)" + (r.failed.isEmpty ? "" : " · \(r.failed.count) falharam"))
+                for f in r.failed.prefix(10) { log("  falhou: \(f)") }
+            } catch { return fail("não foi possível criar \(dest.path): \(error.localizedDescription)") }
+        }
         if let ev = res["evaluation"] as? [String: Any], let evCSV = res["evaluationCSV"] as? String {
             let evURL = outURL.deletingLastPathComponent()
                 .appendingPathComponent(outURL.deletingPathExtension().lastPathComponent + "_avaliacao.csv")

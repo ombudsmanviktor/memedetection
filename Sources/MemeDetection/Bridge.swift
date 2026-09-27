@@ -121,6 +121,32 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDeleg
                 catch { err("não foi possível gravar: \(error.localizedDescription)") }
             }
 
+        case "copyMemeImages":
+            guard let root = body["root"] as? String, let files = body["files"] as? [String] else { return err("parâmetros ausentes") }
+            let source = URL(fileURLWithPath: root)
+            let p = NSSavePanel()
+            p.nameFieldStringValue = (body["name"] as? String) ?? source.lastPathComponent + "_memes"
+            p.nameFieldLabel = "Nova pasta:"
+            p.directoryURL = source.deletingLastPathComponent()
+            p.canCreateDirectories = true
+            p.prompt = "Criar pasta"
+            p.message = "Crie uma pasta nova para a cópia das \(files.count) imagens classificadas como meme. A pasta original não será alterada."
+            let choose: (@escaping (URL?) -> Void) -> Void = { done in
+                if let auto = DevHooks.copyDestination { done(auto) } else { self.runPanel(p, done) }
+            }
+            choose { url in
+                guard let dest = url else { return ok(nil) }
+                if let problem = ImageCopy.validate(source: source, destination: dest) { return err(problem) }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let r = try ImageCopy.copy(files: files, from: source, to: dest) { done, total in
+                            DispatchQueue.main.async { self.emit("copy", ["done": done, "total": total]) }
+                        }
+                        ok(["path": dest.path, "copied": r.copied, "failed": r.failed])
+                    } catch { err("não foi possível criar a pasta: \(error.localizedDescription)") }
+                }
+            }
+
         case "overwriteCSV":
             guard let text = body["text"] as? String, let path = body["path"] as? String else { return err("parâmetros ausentes") }
             let a = NSAlert()
