@@ -64,3 +64,22 @@ enum ImageCopy {
         return out
     }
 }
+
+/// Grava uma amostra numa pasta nova: o CSV com as linhas sorteadas, o arquivo
+/// de parâmetros do sorteio e uma subpasta (com o nome da pasta original) com
+/// a cópia das imagens de memes dessas linhas.
+enum SampleWriter {
+    struct Outcome { var csvURL: URL; var imagesURL: URL; var copy: ImageCopy.Outcome }
+
+    static func write(to dest: URL, csvName: String, csv: String, bom: Bool, params: String,
+                      source: URL, images: [String], progress: (Int, Int) -> Void = { _, _ in }) throws -> Outcome {
+        try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        let stem = (csvName as NSString).deletingPathExtension
+        let csvURL = dest.appendingPathComponent(stem + "_amostra.csv")
+        try TextFile.write(csv, bom: bom, to: csvURL)
+        try TextFile.write(params, bom: false, to: dest.appendingPathComponent("amostra_parametros.csv"))
+        let imagesURL = dest.appendingPathComponent(source.lastPathComponent)
+        let r = try ImageCopy.copy(files: images, from: source, to: imagesURL, progress: progress)
+        return Outcome(csvURL: csvURL, imagesURL: imagesURL, copy: r)
+    }
+}

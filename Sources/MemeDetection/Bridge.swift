@@ -147,21 +147,35 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDeleg
                 }
             }
 
-        case "overwriteCSV":
-            guard let text = body["text"] as? String, let path = body["path"] as? String else { return err("parâmetros ausentes") }
-            let a = NSAlert()
-            a.alertStyle = .warning
-            a.messageText = "Substituir o CSV original?"
-            a.informativeText = (body["detail"] as? String) ?? "O arquivo será sobrescrito. Esta ação não pode ser desfeita."
-            a.addButton(withTitle: "Substituir")
-            a.addButton(withTitle: "Cancelar")
-            if #available(macOS 11.0, *) { a.buttons[0].hasDestructiveAction = true }
-            let finish: (NSApplication.ModalResponse) -> Void = { r in
-                guard r == .alertFirstButtonReturn else { return ok(nil) }
-                do { try TextFile.write(text, bom: body["bom"] as? Bool ?? false, to: URL(fileURLWithPath: path)); ok(["path": path]) }
-                catch { err("não foi possível gravar: \(error.localizedDescription)") }
+        case "createSample":
+            guard let root = body["root"] as? String, let files = body["files"] as? [String],
+                  let csv = body["csv"] as? String, let params = body["params"] as? String else { return err("parâmetros ausentes") }
+            let source = URL(fileURLWithPath: root)
+            let csvName = (body["csvName"] as? String) ?? "amostra.csv"
+            let rows = (body["rows"] as? Int) ?? 0
+            let p = NSSavePanel()
+            p.nameFieldStringValue = (body["name"] as? String) ?? "amostra"
+            p.nameFieldLabel = "Nova pasta:"
+            if let dir = body["dir"] as? String { p.directoryURL = URL(fileURLWithPath: dir) }
+            p.canCreateDirectories = true
+            p.prompt = "Criar amostra"
+            p.message = "Crie uma pasta nova para a amostra: um CSV com \(rows) linhas de memes sorteadas, a cópia das \(files.count) imagens dessas linhas e os parâmetros do sorteio."
+            let choose: (@escaping (URL?) -> Void) -> Void = { done in
+                if let auto = DevHooks.copyDestination { done(auto) } else { self.runPanel(p, done) }
             }
-            if let w = window { a.beginSheetModal(for: w, completionHandler: finish) } else { finish(a.runModal()) }
+            choose { url in
+                guard let dest = url else { return ok(nil) }
+                if let problem = ImageCopy.validate(source: source, destination: dest) { return err(problem) }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let r = try SampleWriter.write(to: dest, csvName: csvName, csv: csv, bom: body["bom"] as? Bool ?? false,
+                                                       params: params, source: source, images: files) { done, total in
+                            DispatchQueue.main.async { self.emit("copy", ["done": done, "total": total]) }
+                        }
+                        ok(["path": dest.path, "csv": r.csvURL.path, "copied": r.copy.copied, "failed": r.copy.failed])
+                    } catch { err("não foi possível criar a amostra: \(error.localizedDescription)") }
+                }
+            }
 
         case "reveal":
             if let path = body["path"] as? String { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }

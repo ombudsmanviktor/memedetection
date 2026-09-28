@@ -31,6 +31,15 @@ enum CLI {
       --copy-memes PASTA   cria PASTA (nova ou vazia, fora da pasta de imagens) com uma
                            cópia só das imagens classificadas como meme, mantendo as
                            subpastas; a pasta original não é alterada
+      --sample-out PASTA   cria PASTA (nova ou vazia, fora da pasta de imagens) com uma
+                           amostra aleatória das linhas de memes: <csv>_amostra.csv,
+                           a cópia das imagens de memes dessas linhas e
+                           amostra_parametros.csv. Respeita --min-confidence
+      --sample-confidence N  nível de confiança da amostra: 80, 85, 90, 95 (padrão) ou 99
+      --sample-margin X    margem de erro em % (padrão 5)
+      --sample-population N  tamanho da população (padrão: linhas de memes disponíveis)
+      --sample-size N      tamanho fixo da amostra (dispensa a calculadora)
+      --seed S             semente do sorteio (padrão: aleatória, mostrada no fim)
       --concurrency N      imagens analisadas em paralelo (1–8, padrão 4)
       --quiet              sem progresso no terminal
       --help, --version
@@ -50,7 +59,8 @@ enum CLI {
     static func run(_ args: [String]) -> Int32 {
         var opt = [String: String](), flags = Set<String>()
         var i = 0
-        let valued: Set<String> = ["--csv", "--images", "--column", "--mode", "--threshold", "--truth", "--out", "--concurrency", "--copy-memes", "--min-confidence"]
+        let valued: Set<String> = ["--csv", "--images", "--column", "--mode", "--threshold", "--truth", "--out", "--concurrency", "--copy-memes", "--min-confidence",
+                                   "--sample-out", "--sample-confidence", "--sample-margin", "--sample-population", "--sample-size", "--seed"]
         while i < args.count {
             let a = args[i]
             if valued.contains(a) {
@@ -81,6 +91,18 @@ enum CLI {
         let copyURL = opt["--copy-memes"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
         if let c = copyURL, let problem = ImageCopy.validate(source: imgURL, destination: c) { return fail(problem) }
 
+        let sampleURL = opt["--sample-out"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
+        if let s = sampleURL, let problem = ImageCopy.validate(source: imgURL, destination: s) { return fail(problem) }
+        if let s = sampleURL, let c = copyURL, s.standardizedFileURL == c.standardizedFileURL { return fail("--sample-out e --copy-memes precisam ser pastas diferentes") }
+        let sampleConf = Int(opt["--sample-confidence"] ?? "95") ?? 0
+        guard [80, 85, 90, 95, 99].contains(sampleConf) else { return fail("--sample-confidence deve ser 80, 85, 90, 95 ou 99") }
+        let sampleMargin = Double((opt["--sample-margin"] ?? "5").replacingOccurrences(of: ",", with: ".")) ?? 0
+        guard sampleMargin > 0, sampleMargin <= 50 else { return fail("--sample-margin deve estar entre 0 e 50 (%)") }
+        let samplePop = Int(opt["--sample-population"] ?? "0") ?? -1
+        let sampleSize = Int(opt["--sample-size"] ?? "0") ?? -1
+        guard samplePop >= 0, sampleSize >= 0 else { return fail("--sample-population e --sample-size devem ser inteiros positivos") }
+        let seed = Int(opt["--seed"] ?? "") ?? Int.random(in: 1...99999)
+
         let csvText: String, csvBOM: Bool
         do { (csvText, csvBOM) = try TextFile.read(csvURL) } catch { return fail("não foi possível ler \(csvURL.path): \(error.localizedDescription)") }
         let stem = csvURL.deletingPathExtension().lastPathComponent
@@ -110,6 +132,11 @@ enum CLI {
         if let c = opt["--column"] { opts["column"] = c }
         if let m = opt["--mode"] { opts["mode"] = m }
         if let t = opt["--truth"] { opts["truth"] = t }
+        if sampleURL != nil {
+            let df = ISO8601DateFormatter(); df.formatOptions = [.withInternetDateTime]
+            opts["sample"] = ["confidence": sampleConf, "margin": sampleMargin, "population": samplePop, "size": sampleSize,
+                              "seed": seed, "folder": imgURL.lastPathComponent, "date": df.string(from: Date())]
+        }
 
         let files = FolderScan.list(imgURL)
         let plan = fromJSON(cli.invokeMethod("plan", withArguments: [csvText, toJSON(files), toJSON(opts)]))
@@ -154,6 +181,19 @@ enum CLI {
                 log("Copiadas \(r.copied) imagens de memes para \(dest.path)" + (r.failed.isEmpty ? "" : " · \(r.failed.count) falharam"))
                 for f in r.failed.prefix(10) { log("  falhou: \(f)") }
             } catch { return fail("não foi possível criar \(dest.path): \(error.localizedDescription)") }
+        }
+        if let dest = sampleURL, let sm = res["sample"] as? [String: Any] {
+            let images = sm["images"] as? [String] ?? []
+            do {
+                let r = try SampleWriter.write(to: dest, csvName: csvURL.lastPathComponent, csv: sm["csv"] as? String ?? "",
+                                               bom: (res["bom"] as? Bool) ?? false, params: sm["paramsCSV"] as? String ?? "",
+                                               source: imgURL, images: images) { done, total in
+                    if !quiet { FileHandle.standardError.write("\r[\(done)/\(total)] copiando imagens da amostra…".data(using: .utf8)!) }
+                }
+                if !quiet && !images.isEmpty { FileHandle.standardError.write("\n".data(using: .utf8)!) }
+                log("Amostra: \(sm["drawn"] ?? 0) linhas sorteadas (calculado \(sm["calculated"] ?? 0), população \(sm["population"] ?? 0), disponíveis \(sm["available"] ?? 0), semente \(sm["seed"] ?? 0)) · \(r.copy.copied) imagens → \(dest.path)")
+                for f in r.copy.failed.prefix(10) { log("  falhou: \(f)") }
+            } catch { return fail("não foi possível criar a amostra em \(dest.path): \(error.localizedDescription)") }
         }
         if let ev = res["evaluation"] as? [String: Any], let evCSV = res["evaluationCSV"] as? String {
             let evURL = outURL.deletingLastPathComponent()

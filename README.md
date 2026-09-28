@@ -19,15 +19,36 @@ A classificação usa o modelo **[meme-detection](https://github.com/maty-bohace
 - Classifica cada imagem com o modelo original. Formatos: JPG, PNG, GIF (primeiro quadro), WebP, HEIC, BMP e TIFF.
 - Uma linha com várias imagens recebe **meme se pelo menos uma delas for meme**.
 - Acrescenta ao CSV as colunas `md_*`, **sem alterar as colunas originais**: ordem, delimitador (`,` `;` tab), aspas, quebras de linha e BOM são preservados.
-- Salva:
-  - o **CSV completo** com rótulos;
-  - um **CSV filtrado**, só com as linhas de memes, com ou sem as colunas `md_*`;
-  - ou **filtra o próprio CSV original**, eliminando as linhas que não são memes, depois de pedir confirmação;
-  - e, à parte, cria uma **pasta nova só com as imagens de memes**, onde você indicar: uma cópia das imagens classificadas como meme, mantendo as subpastas. Se 3.318 de 5.000 imagens forem memes, a pasta nova recebe só essas 3.318, e a pasta original continua com as 5.000.
-- Em **cada exportação** (CSV completo, CSV filtrado, filtrar o original, copiar imagens) você escolhe a **confiança**: todas as linhas classificadas (alta, média e baixa), só alta e média, ou **só alta**. Com filtro, linhas sem imagem ou com erro ficam de fora. Na cópia de imagens, vale o nível de cada imagem. O cartão mostra na hora quantas linhas ou imagens vão ser exportadas.
+- Salva, sempre como cópia (o CSV e a pasta originais nunca são alterados):
+  - **Cópia do CSV com Rótulos**: todas as linhas, com as colunas `md_*`;
+  - **Cópia do CSV Filtrada (Somente Memes)**: só as linhas de memes, com ou sem as colunas `md_*`;
+  - **Cópia da Pasta de Imagens (Somente Memes)**: uma pasta nova, onde você indicar, com uma cópia das imagens classificadas como meme, mantendo as subpastas. Se 3.318 de 5.000 imagens forem memes, a pasta nova recebe só essas 3.318, e a pasta original continua com as 5.000;
+  - **Amostra do CSV e da Pasta de Imagens**: uma calculadora de tamanho de amostra (veja abaixo) sorteia linhas de memes e cria uma pasta nova com o CSV da amostra, as imagens de memes dessas linhas e os parâmetros do sorteio.
+- Em **cada exportação** você escolhe a **confiança**: todas as linhas classificadas (alta, média e baixa), só alta e média, ou **só alta**. Com filtro, linhas sem imagem ou com erro ficam de fora. Na cópia de imagens, vale o nível de cada imagem. O cartão mostra na hora quantas linhas ou imagens vão ser exportadas.
 - **Avaliação opcional:** se uma coluna já tem rótulos codificados à mão, o app calcula **acurácia, precisão, recall, F1** e a matriz de confusão, e exporta um relatório.
 - Tem **limiar ajustável**: mudar o limiar recalcula os rótulos na hora, sem analisar de novo.
 - Mostra o **comando equivalente no Terminal**, que dá o mesmo resultado para scripts e bases grandes.
+
+## Amostra
+
+O cartão **Amostra do CSV e da Pasta de Imagens** funciona como as calculadoras de tamanho de amostra usuais, por exemplo a da SurveyMonkey. Você informa:
+- o **tamanho da população**, preenchido com o número de linhas de memes disponíveis;
+- o **nível de confiança**: 80, 85, 90, 95 ou 99%;
+- a **margem de erro**.
+
+O app calcula o tamanho da amostra pela fórmula de Cochran com correção para população finita e proporção esperada de 50%:
+
+n₀ = z² · p(1 − p) / e²  e  n = n₀ / (1 + (n₀ − 1) / N)
+
+Exemplos, com 95% de confiança e 5% de margem: 5.000 → **357**, 3.318 → **345**, 1 milhão → **385**.
+
+As linhas são sorteadas ao acaso, sem reposição, entre as linhas rotuladas como **meme**, respeitando o filtro de confiança escolhido. Com a mesma **semente**, o sorteio se repete. O app cria uma pasta nova com:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `<csv>_amostra.csv` | Só as linhas sorteadas, na ordem original, com ou sem as colunas `md_*` |
+| `<pasta de imagens>/` | Cópia das imagens de memes dessas linhas, mantendo as subpastas |
+| `amostra_parametros.csv` | População, nível de confiança, margem de erro, tamanho calculado e sorteado, semente, limiar, filtro de confiança e os números das linhas sorteadas, para documentar e reproduzir a amostra |
 
 ## Colunas acrescentadas
 
@@ -79,6 +100,7 @@ O mesmo executável funciona como ferramenta de linha de comando, com a mesma l�
 | `--truth COL` | Coluna com o rótulo verdadeiro: imprime a acurácia e grava `<saída>_avaliacao.csv` |
 | `--out ARQ` | CSV de saída. Pode ser o próprio `--csv`, para filtrar o original |
 | `--min-confidence N` | `alta`, `media` (alta e média) ou `baixa` (todas, padrão). Vale para o CSV gravado e para `--copy-memes` |
+| `--sample-out PASTA` | Cria a pasta de amostra descrita acima. Ajuste com `--sample-confidence 80\|85\|90\|95\|99` (padrão 95), `--sample-margin X` (%, padrão 5), `--sample-population N`, `--sample-size N` (tamanho fixo, sem calculadora) e `--seed S` |
 | `--copy-memes PASTA` | Cria `PASTA` com uma cópia só das imagens classificadas como meme, mantendo as subpastas. A pasta precisa ser nova (ou vazia) e ficar fora da pasta de imagens |
 | `--concurrency N` | Imagens em paralelo (1–8, padrão 4) |
 
@@ -92,7 +114,7 @@ O `.mlmodel` do HEAD do repositório original **não é o detector de memes**: �
 
 ## Privacidade
 
-O CSV e as imagens são lidos direto do disco e analisados localmente. O app não faz nenhuma conexão de rede: não há servidor, telemetria nem cookies. Os arquivos só são gravados onde você escolher, e o CSV original só é alterado se você pedir e confirmar. A pasta original de imagens nunca é alterada: a opção de separar os memes grava uma **cópia** numa pasta nova. Em discos APFS, o padrão dos Macs, a cópia é um clone instantâneo, que não ocupa espaço extra enquanto os arquivos não forem modificados.
+O CSV e as imagens são lidos direto do disco e analisados localmente. O app não faz nenhuma conexão de rede: não há servidor, telemetria nem cookies. Os arquivos só são gravados onde você escolher. Pela interface, o CSV e a pasta originais nunca são alterados: todas as exportações gravam **cópias**. Só pelo Terminal, com `--out` apontando para o próprio `--csv`, o original é substituído. Em discos APFS, o padrão dos Macs, a cópia é um clone instantâneo, que não ocupa espaço extra enquanto os arquivos não forem modificados.
 
 ---
 

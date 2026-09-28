@@ -345,3 +345,17 @@ details.rbox[open] > summary .chev { transform: rotate(90deg); }
 .conf-row .conf-sel { width: auto; flex: 1; min-width: 150px; max-width: 220px; padding: 0.25rem 0.5rem; font-size: 0.8rem; font-weight: 400; }
 .conf-count { font-size: 0.76rem; color: var(--ink-muted); }
 .conf-count strong { color: var(--ink); }
+.save-card.wide { grid-column: 1 / -1; }
+.sample-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 0.9fr); gap: 0.8rem; align-items: start; }
+@media (max-width: 760px) { .sample-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.sample-grid .field { margin-bottom: 0; }
+.field-hint { font-size: 0.72rem; color: var(--ink-muted); line-height: 1.4; }
+.sample-result { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 8px; padding: 0.45rem 0.8rem; text-align: center; }
+.sample-n { font-size: 1.6rem; font-weight: 700; color: var(--accent); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.sample-n-lbl { font-size: 0.72rem; color: var(--ink-mid); }
+.sample-opts-row { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; align-items: center; }
+.sample-opts-row .input.num { padding: 0.25rem 0.5rem; font-size: 0.8rem; font-weight: 400; }
+/* Três cartões de cópia lado a lado; a amostra ocupa a linha inteira embaixo */
+.save-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 980px) { .save-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .save-grid > .save-card:nth-child(3) { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .save-grid { grid-template-columns: minmax(0, 1fr); } }

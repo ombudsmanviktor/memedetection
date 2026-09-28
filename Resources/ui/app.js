@@ -80,8 +80,15 @@ const mockBridge = (() => {
           }
           return { path: '/simulado/' + (a.name || 'memes'), copied: a.files.length, failed: [] };
         }
-        case 'saveCSV': case 'overwriteCSV': {
-          if (cmd === 'overwriteCSV' && !confirm(a.detail)) return null;
+        case 'createSample': {
+          for (let i = 1; i <= a.files.length; i++) {
+            if (i % 25 === 0 || i === a.files.length) { window.mdNativeEvent('copy', { done: i, total: a.files.length }); await new Promise(r => setTimeout(r, 20)); }
+          }
+          const stem = a.csvName.replace(/\.[^.]+$/, '');
+          mockBridge.lastSample = a;
+          return { path: '/simulado/' + a.name, csv: '/simulado/' + a.name + '/' + stem + '_amostra.csv', copied: a.files.length, failed: [] };
+        }
+        case 'saveCSV': {
           const name = a.name || a.path.split('/').pop();
           const link = document.createElement('a');
           link.href = URL.createObjectURL(new Blob([(a.bom ? '\uFEFF' : '') + a.text], { type: 'text/csv;charset=utf-8' }));
@@ -186,7 +193,7 @@ async function pickFolder() { try { setFolder(await call('pickFolder')); } catch
 // Eventos nativos (arrastar do Finder)
 window.mdNativeEvent = async (type, data) => {
   if (type === 'copy') {
-    const el = $('copy-progress');
+    const el = $(state.progressEl || 'copy-progress');
     el.style.display = '';
     el.textContent = `Copiando… ${fmtInt(data.done)} de ${fmtInt(data.total)}`;
     return;
@@ -319,6 +326,8 @@ async function startRun() {
     startedAt: Date.now(), cached: state.plan.images.length - pending.length
   };
   $('thr-live').value = String(state.threshold);
+  state.smpTouched = false;
+  if (!$('smp-seed').value) $('smp-seed').value = randomSeed();
   goStep(3);
   $('run-title').textContent = 'Analisando imagens';
   $('run-desc').innerHTML = `${fmtInt(run.total)} imagens de <strong>${esc(state.folder.name)}</strong> ligadas a <strong>${esc(state.csv.name)}</strong>` +
@@ -378,7 +387,6 @@ function renderRun() {
   $('n-meme-imgs').textContent = fmtInt(MDCore.memeImages(state.plan, state.cache, state.threshold).length);
   updateExportCounts();
   $('n-all-imgs').textContent = fmtInt(state.folder.files.filter(f => MDCore.IMG_EXT.test(f.name)).length);
-  $('orig-name').textContent = state.csv.name;
   $('thr-val').textContent = fmtDec(state.threshold);
 
   let status;
@@ -414,27 +422,61 @@ function exportCounts() {
   return {
     all: MDCore.countRows(rr, { minConfidence: conf('conf-all') }),
     memes: MDCore.countRows(rr, { onlyMemes: true, minConfidence: conf('conf-memes') }),
-    over: MDCore.countRows(rr, { onlyMemes: true, minConfidence: conf('conf-over') }),
-    copy: MDCore.memeImages(state.plan, state.cache, state.threshold, conf('conf-copy')).length
+    copy: MDCore.memeImages(state.plan, state.cache, state.threshold, conf('conf-copy')).length,
+    sample: MDCore.buildSample(state.table, state.plan, rr, state.cache, state.threshold, { ...sampleOpts(), noCSV: true })
   };
+}
+
+/* ── Amostra ────────────────────────────────────────────────────────────── */
+const randomSeed = () => Math.floor(Math.random() * 99999) + 1;
+function sampleOpts() {
+  const margin = Math.min(20, Math.max(1, parseFloat(String($('smp-margin').value).replace(',', '.')) || 5));
+  return {
+    minConfidence: conf('conf-sample'),
+    confidence: parseInt($('smp-conf').value, 10) || 95,
+    margin,
+    population: state.smpTouched ? Math.max(1, parseInt($('smp-pop').value, 10) || 0) : 0,   // 0 = linhas disponíveis
+    seed: parseInt($('smp-seed').value, 10) || 1,
+    includeMetrics: $('smp-metrics').checked
+  };
+}
+function renderSample(sm) {
+  if (!state.smpTouched) $('smp-pop').value = String(sm.available);
+  $('smp-n').textContent = fmtInt(sm.drawn);
+  $('smp-pop-hint').textContent = `${fmtInt(sm.available)} linhas de memes disponíveis${CONF_LBL[conf('conf-sample')]}` +
+    (state.smpTouched ? ' · ' : '');
+  if (state.smpTouched) {
+    const a = document.createElement('a'); a.href = '#'; a.textContent = 'usar esse valor';
+    a.addEventListener('click', e => { e.preventDefault(); state.smpTouched = false; updateExportCounts(); setSaveEnabled(true); });
+    $('smp-pop-hint').appendChild(a);
+  }
+  let txt;
+  if (!sm.available) txt = 'Não há linhas de memes com esse filtro de confiança para sortear.';
+  else {
+    txt = `Serão sorteadas <strong>${fmtInt(sm.drawn)}</strong> linhas de memes e copiadas <strong>${fmtInt(sm.images.length)}</strong> imagens.`;
+    if (sm.calculated > sm.available) txt += ` A calculadora pede ${fmtInt(sm.calculated)} linhas, mas só há ${fmtInt(sm.available)} disponíveis: a amostra usa todas.`;
+    else if (sm.drawn === sm.available) txt += ' Com esses parâmetros, a amostra inclui todas as linhas de memes disponíveis.';
+  }
+  $('cnt-sample').innerHTML = txt;
 }
 function updateExportCounts() {
   if (!state.rowRes) return;
   const c = state.exportCounts = exportCounts(), total = state.table.rows.length;
   $('cnt-all').innerHTML = `Serão gravadas <strong>${fmtInt(c.all)}</strong> de ${fmtInt(total)} linhas${CONF_LBL[conf('conf-all')] ? ' (só as' + CONF_LBL[conf('conf-all')] + ')' : ''}.`;
   $('cnt-memes').innerHTML = `Serão gravadas <strong>${fmtInt(c.memes)}</strong> linhas de memes${CONF_LBL[conf('conf-memes')]}.`;
-  $('cnt-over').innerHTML = `O original ficará com <strong>${fmtInt(c.over)}</strong> linhas de memes${CONF_LBL[conf('conf-over')]}.`;
+  renderSample(c.sample);
   $('cnt-copy').innerHTML = `Serão copiadas <strong>${fmtInt(c.copy)}</strong> imagens de memes${CONF_LBL[conf('conf-copy')]}.`;
 }
 
 function setSaveEnabled(on) {
-  ['btn-save-all', 'btn-save-memes', 'btn-overwrite', 'btn-copy-memes', 'thr-live', 'btn-eval-save',
-   'conf-all', 'conf-memes', 'conf-copy', 'conf-over'].forEach(id => $(id).disabled = !on || state.copying);
+  ['btn-save-all', 'btn-save-memes', 'btn-copy-memes', 'btn-sample', 'thr-live', 'btn-eval-save',
+   'conf-all', 'conf-memes', 'conf-copy', 'conf-sample', 'smp-pop', 'smp-conf', 'smp-margin', 'smp-seed', 'smp-reroll', 'smp-metrics']
+    .forEach(id => $(id).disabled = !on || state.copying);
   if (on) {
     const c = state.exportCounts || exportCounts();
     $('btn-save-all').disabled = !c.all || state.copying;
     $('btn-save-memes').disabled = !c.memes || state.copying;
-    $('btn-overwrite').disabled = !c.over || state.copying;
+    $('btn-sample').disabled = !(c.sample && c.sample.drawn) || state.copying;
     $('btn-copy-memes').disabled = !c.copy || state.copying;
   }
 }
@@ -514,17 +556,33 @@ async function doSave(kind) {
       const out = MDCore.outputCSV(state.table, state.plan, rr, { onlyMemes: true, includeMetrics: $('keep-metrics').checked, minConfidence: conf('conf-memes') });
       const res = await call('saveCSV', { text: out.text, bom: out.bom, name: csvStem() + '_memes.csv', dir: state.csv.dir, message: 'Salvar só as linhas rotuladas como meme' });
       if (res) savedBanner(res.path, `CSV filtrado com ${fmtInt(out.count)} linhas de memes${CONF_LBL[conf('conf-memes')]}`);
-    } else if (kind === 'overwrite') {
-      const out = MDCore.outputCSV(state.table, state.plan, rr, { onlyMemes: true, includeMetrics: $('keep-metrics').checked, minConfidence: conf('conf-over') });
-      const total = state.table.rows.length;
-      const detail = `“${state.csv.name}” será sobrescrito e ficará só com as ${fmtInt(out.count)} linhas rotuladas como meme${CONF_LBL[conf('conf-over')]}, de ${fmtInt(total)}. As outras ${fmtInt(total - out.count)} linhas serão eliminadas` +
-        `${$('keep-metrics').checked ? ', e as colunas md_* serão acrescentadas' : ''}. Esta ação não pode ser desfeita.`;
-      const res = await call('overwriteCSV', { text: out.text, bom: out.bom, path: state.csv.path, detail });
-      if (res) savedBanner(res.path, `CSV original filtrado (${fmtInt(out.count)} linhas)`);
+    } else if (kind === 'sample') {
+      const o = sampleOpts();
+      const sm = MDCore.buildSample(state.table, state.plan, rr, state.cache, state.threshold, o);
+      if (!sm.drawn) return;
+      const params = MDCore.sampleParamsCSV(sm, {
+        csv: state.csv.name, folder: state.folder.name, date: new Date().toISOString(), threshold: state.threshold,
+        minConfidence: o.minConfidence, confidence: o.confidence, margin: o.margin });
+      state.copying = true; state.progressEl = 'sample-progress'; setSaveEnabled(true);
+      $('sample-progress').style.display = 'none';
+      try {
+        const res = await call('createSample', {
+          root: state.folder.path, files: sm.images, csv: sm.csv, bom: sm.bom, params, rows: sm.drawn,
+          csvName: state.csv.name, name: `${csvStem()}_amostra_${sm.drawn}`, dir: state.csv.dir });
+        if (res) {
+          savedBanner(res.path, `Amostra de ${fmtInt(sm.drawn)} linhas e ${fmtInt(res.copied)} imagens (semente ${sm.seed})`, 'criada em');
+          $('sample-progress').style.display = '';
+          $('sample-progress').textContent = `✓ Amostra criada: ${fmtInt(sm.drawn)} linhas, ${fmtInt(res.copied)} imagens.`;
+          if (res.failed && res.failed.length) {
+            showBanner('error-run', `<strong>${fmtInt(res.failed.length)} imagens não puderam ser copiadas:</strong><br>` +
+              res.failed.slice(0, 5).map(f => '• ' + esc(f)).join('<br>'));
+          }
+        }
+      } finally { state.copying = false; setSaveEnabled(true); }
     } else if (kind === 'copy') {
       const files = MDCore.memeImages(state.plan, state.cache, state.threshold, conf('conf-copy'));
       if (!files.length) return;
-      state.copying = true; setSaveEnabled(true);
+      state.copying = true; state.progressEl = 'copy-progress'; setSaveEnabled(true);
       $('copy-progress').style.display = 'none';
       try {
         const res = await call('copyMemeImages', { root: state.folder.path, files, name: state.folder.name + '_memes' });
@@ -619,7 +677,10 @@ async function init() {
   }));
   $('btn-save-all').addEventListener('click', () => doSave('all'));
   $('btn-save-memes').addEventListener('click', () => doSave('memes'));
-  $('btn-overwrite').addEventListener('click', () => doSave('overwrite'));
+  $('btn-sample').addEventListener('click', () => doSave('sample'));
+  $('smp-pop').addEventListener('input', () => { state.smpTouched = $('smp-pop').value !== ''; updateExportCounts(); setSaveEnabled(true); });
+  ['smp-conf', 'smp-margin', 'smp-seed'].forEach(id => $(id).addEventListener('input', () => { updateExportCounts(); setSaveEnabled(true); }));
+  $('smp-reroll').addEventListener('click', () => { $('smp-seed').value = randomSeed(); updateExportCounts(); setSaveEnabled(true); });
   $('btn-eval-save').addEventListener('click', () => doSave('eval'));
   $('btn-copy-memes').addEventListener('click', () => doSave('copy'));
   document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {

@@ -7,8 +7,9 @@ import WebKit
 /// salvar um snapshot da janela e encerrar. Serve para testar a ponte JS↔Swift
 /// sem precisar clicar.
 enum DevHooks {
-    /// MD_AUTOTEST_COPYTO=<pasta>: no teste, "Copiar imagens de memes" usa essa
-    /// pasta em vez de abrir o diálogo de salvar.
+    /// MD_AUTOTEST_COPYTO=<pasta>: no teste, "Copiar imagens de memes" (ou
+    /// "Criar amostra", com MD_AUTOTEST_ACTION=sample) usa essa pasta em vez de
+    /// abrir o diálogo de salvar.
     static var copyDestination: URL? {
         guard ProcessInfo.processInfo.environment["MD_AUTOTEST"] != nil,
               let p = ProcessInfo.processInfo.environment["MD_AUTOTEST_COPYTO"] else { return nil }
@@ -20,6 +21,7 @@ enum DevHooks {
         let parts = spec.components(separatedBy: "|")
         guard parts.count >= 3 else { return }
         let scrollTo = parts.count > 3 ? parts[3] : ""
+        let action = ProcessInfo.processInfo.environment["MD_AUTOTEST_ACTION"] == "sample" ? "sample" : "copy"
         func js(_ s: String, _ done: @escaping (Any?) -> Void = { _ in }) {
             webView.callAsyncJavaScript(s, arguments: [:], in: nil, in: .page) { r in
                 switch r { case .success(let v): done(v); case .failure(let e): print("JS error:", e); done(nil) }
@@ -30,6 +32,7 @@ enum DevHooks {
             bridge.emit("drop", ["path": parts[1], "isDir": true])
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 js("""
+                   for (let i = 0; i < 100 && document.getElementById('btn-continue-1').disabled; i++) await new Promise(r => setTimeout(r, 100));
                    document.getElementById('btn-continue-1').click();
                    await startRun();
                    await new Promise(r => setTimeout(r, 800));
@@ -37,7 +40,7 @@ enum DevHooks {
                    if (el) el.scrollIntoView(); else window.scrollTo(0, 0);
                    await new Promise(r => setTimeout(r, 600));
                    const s = MDCore.summarize(state.rowRes);
-                   if (\(copyDestination != nil ? "true" : "false")) { await doSave('copy'); await new Promise(r => setTimeout(r, 500)); }
+                   if (\(copyDestination != nil ? "true" : "false")) { await doSave('\(action)'); await new Promise(r => setTimeout(r, 500)); }
                    const saved = document.getElementById('saved').textContent + ' ' + document.getElementById('error-run').textContent;
                    return JSON.stringify({ step1: document.getElementById('csv-meta').textContent + ' / ' + document.getElementById('folder-meta').textContent,
                      model: document.getElementById('model-line').textContent, summary: s, saved,

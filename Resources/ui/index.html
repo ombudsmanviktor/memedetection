@@ -202,14 +202,14 @@
         <p class="panel-hint" style="margin:-.4rem 0 1rem">Em cada exportação, escolha se entram todas as linhas classificadas ou só as de confiança <strong>alta</strong> (ou alta e média). O nível vem da distância entre o log-odds e o limiar. Com filtro, linhas sem imagem ou com erro ficam de fora. Na cópia de imagens, vale o nível de cada imagem.</p>
         <div class="save-grid">
           <div class="save-card">
-            <h4>CSV completo com rótulos</h4>
+            <h4>Cópia do CSV com Rótulos</h4>
             <p>Todas as linhas do CSV original, na mesma ordem e com as mesmas colunas, seguidas das colunas <code>md_*</code>: rótulo, probabilidade, confiança, log-odds, nível de confiança, arquivos e erros.</p>
             <label class="conf-row" for="conf-all">Confiança <select class="input conf-sel" id="conf-all"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
             <span class="conf-count" id="cnt-all"></span>
             <button class="btn btn-primary" id="btn-save-all">💾 Salvar CSV…</button>
           </div>
           <div class="save-card">
-            <h4>Só as linhas de memes</h4>
+            <h4>Cópia do CSV Filtrada (Somente Memes)</h4>
             <p>Um CSV novo só com as linhas rotuladas como <strong>meme</strong> (<span id="n-memes">0</span>). O arquivo original não é alterado.</p>
             <label class="radio-row" style="font-size:.8rem"><input type="checkbox" id="keep-metrics" checked> Incluir as colunas <code>md_*</code></label>
             <label class="conf-row" for="conf-memes">Confiança <select class="input conf-sel" id="conf-memes"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
@@ -217,19 +217,44 @@
             <button class="btn btn-ghost" id="btn-save-memes">💾 Salvar CSV filtrado…</button>
           </div>
           <div class="save-card">
-            <h4>Pasta só com as imagens de memes</h4>
+            <h4>Cópia da Pasta de Imagens (Somente Memes)</h4>
             <p>Cria uma pasta nova, onde você indicar, com uma cópia das <strong id="n-meme-imgs">0</strong> imagens classificadas como meme, mantendo as subpastas. A pasta original, com todas as <span id="n-all-imgs">0</span> imagens, não é alterada.</p>
             <label class="conf-row" for="conf-copy">Confiança <select class="input conf-sel" id="conf-copy"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
             <span class="conf-count" id="cnt-copy"></span>
             <p class="panel-hint" id="copy-progress" style="display:none;flex:0"></p>
             <button class="btn btn-ghost" id="btn-copy-memes">📁 Copiar imagens de memes…</button>
           </div>
-          <div class="save-card">
-            <h4>Filtrar o CSV original</h4>
-            <p>Sobrescreve <strong id="orig-name"></strong>, mantendo só as linhas de memes e eliminando as demais. Pede confirmação e não pode ser desfeito.</p>
-            <label class="conf-row" for="conf-over">Confiança <select class="input conf-sel" id="conf-over"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
-            <span class="conf-count" id="cnt-over"></span>
-            <button class="btn btn-danger" id="btn-overwrite">Substituir o original…</button>
+          <div class="save-card wide" id="sample-card">
+            <h4>Amostra do CSV e da Pasta de Imagens</h4>
+            <p>Calcula o tamanho de uma amostra estatística das linhas rotuladas como <strong>meme</strong>, sorteia essas linhas ao acaso e cria uma pasta nova com uma cópia do CSV só com elas, uma cópia das imagens de memes dessas linhas e um arquivo com os parâmetros do sorteio. O CSV e a pasta originais não são alterados.</p>
+            <div class="sample-grid">
+              <div class="field">
+                <label for="smp-pop">Tamanho da população</label>
+                <input type="number" class="input" id="smp-pop" min="1" step="1">
+                <span class="field-hint" id="smp-pop-hint"></span>
+              </div>
+              <div class="field">
+                <label for="smp-conf">Nível de confiança</label>
+                <select class="input" id="smp-conf"><option value="80">80%</option><option value="85">85%</option><option value="90">90%</option><option value="95" selected>95%</option><option value="99">99%</option></select>
+              </div>
+              <div class="field">
+                <label for="smp-margin">Margem de erro (%)</label>
+                <input type="number" class="input" id="smp-margin" min="1" max="20" step="0.5" value="5">
+              </div>
+              <div class="sample-result">
+                <div class="sample-n" id="smp-n">—</div>
+                <div class="sample-n-lbl">tamanho da amostra</div>
+              </div>
+            </div>
+            <div class="sample-opts-row">
+              <label class="conf-row" for="conf-sample">Confiança do rótulo <select class="input conf-sel" id="conf-sample"><option value="baixa">Alta, média e baixa</option><option value="media">Alta e média</option><option value="alta">Só alta</option></select></label>
+              <label class="conf-row" for="smp-seed">Semente <input type="number" class="input num" id="smp-seed" min="1" step="1" style="width:100px"><button class="btn-small" id="smp-reroll" title="Sortear outra amostra">🎲 Sortear outra</button></label>
+              <label class="radio-row" style="font-size:.8rem"><input type="checkbox" id="smp-metrics" checked> Incluir as colunas <code>md_*</code></label>
+            </div>
+            <span class="conf-count" id="cnt-sample"></span>
+            <p class="panel-hint" id="sample-progress" style="display:none;flex:0"></p>
+            <p class="panel-hint" style="flex:0">Fórmula de Cochran com correção para população finita e proporção esperada de 50%, a mesma das calculadoras de amostra usuais: n₀ = z²·p(1−p)/e² e n = n₀ / (1 + (n₀−1)/N). Com a mesma semente, o sorteio se repete.</p>
+            <button class="btn btn-primary" id="btn-sample">🎲 Criar amostra…</button>
           </div>
         </div>
       </div>

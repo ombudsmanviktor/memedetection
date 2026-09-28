@@ -6,7 +6,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
   const MODEL_VAL_ACCURACY = 0.91;      // declarada no README do modelo (Bohacek, 2020)
   const ROWNUM = '#linha';              // pseudo-coluna: número da linha (1 = primeira linha de dados)
   const MD_FIELDS = ['md_rotulo', 'md_prob_meme', 'md_confianca', 'md_logit', 'md_nivel_confianca',
@@ -206,7 +206,6 @@
     ];
   }
 
-  // opts: {onlyMemes, includeMetrics}
   /* Filtro de confiança das exportações. minConfidence: 'baixa' (todas as
      linhas, padrão), 'media' (alta e média) ou 'alta' (só alta). Com filtro,
      linhas sem imagem ou com erro ficam de fora: elas não têm classificação. */
@@ -226,12 +225,13 @@
   }
   function countRows(rowRes, opts) { return rowRes.reduce((n, r) => n + (keepRow(r, opts) ? 1 : 0), 0); }
 
-  // opts: {onlyMemes, includeMetrics, minConfidence}
+  // opts: {onlyMemes, includeMetrics, minConfidence, rows (Set de índices, opcional)}
   function outputCSV(table, plan, rowRes, opts) {
     const include = opts.includeMetrics !== false;
     const header = include ? table.header.concat(MD_FIELDS) : table.header.slice();
     const rows = [];
     table.rows.forEach((r, i) => {
+      if (opts.rows && !opts.rows.has(i)) return;
       if (!keepRow(rowRes[i], opts)) return;
       rows.push(include ? r.concat(mdValues(rowRes[i], plan.rowFiles[i])) : r);
     });
@@ -241,13 +241,87 @@
   // Imagens classificadas como meme (nível da imagem, não da linha), sem
   // repetição, na ordem em que aparecem no CSV. Usado para copiar só os memes.
   // minConfidence usa o nível de confiança de cada imagem (não o da linha).
-  function memeImages(plan, results, threshold, minConfidence) {
+  // rowSet (opcional): só as imagens dessas linhas (usado na amostra).
+  function memeImages(plan, results, threshold, minConfidence, rowSet) {
+    let files = plan.images;
+    if (rowSet) {
+      const seen = new Set(); files = [];
+      [...rowSet].sort((a, b) => a - b).forEach(i => plan.rowFiles[i].forEach(f => { if (!seen.has(f)) { seen.add(f); files.push(f); } }));
+    }
     const out = [];
-    for (const f of plan.images) {
+    for (const f of files) {
       const r = results.get(f);
       if (r && !r.error && r.p >= threshold && passesConf(confidenceLevel(r.logit, threshold), minConfidence)) out.push(f);
     }
     return out;
+  }
+
+  /* ── Amostra ──────────────────────────────────────────────────────────── */
+  // Tamanho de amostra de Cochran com correção para população finita (a mesma
+  // fórmula das calculadoras usuais, como a da SurveyMonkey), com p = 0,5.
+  const Z = { 80: 1.2816, 85: 1.4395, 90: 1.6449, 95: 1.9600, 99: 2.5758 };
+  function sampleSize(N, confidence, marginPct, p = 0.5) {
+    N = Math.floor(N);
+    if (!(N > 0)) return 0;
+    const z = Z[confidence] || Z[95], e = marginPct / 100;
+    if (!(e > 0)) return N;
+    const n0 = z * z * p * (1 - p) / (e * e);
+    return Math.min(N, Math.ceil(n0 / (1 + (n0 - 1) / N)));
+  }
+
+  // Sorteio reproduzível: mulberry32 + Fisher–Yates parcial (o mesmo do WgetLAB)
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function sampleRows(pool, n, seed) {
+    const arr = pool.slice(), rnd = mulberry32(seed);
+    n = Math.min(n, arr.length);
+    for (let i = 0; i < n; i++) {
+      const j = i + Math.floor(rnd() * (arr.length - i));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.slice(0, n).sort((a, b) => a - b);
+  }
+
+  // opts: {minConfidence, confidence, margin, population, size (fixo, opcional), seed, includeMetrics}
+  // O universo são as linhas rotuladas como meme que passam pelo filtro de confiança.
+  function buildSample(table, plan, rowRes, results, threshold, opts) {
+    const f = { onlyMemes: true, minConfidence: opts.minConfidence };
+    const pool = [];
+    rowRes.forEach((r, i) => { if (keepRow(r, f)) pool.push(i); });
+    const population = opts.population > 0 ? Math.floor(opts.population) : pool.length;
+    const calculated = opts.size > 0 ? Math.floor(opts.size) : sampleSize(population, opts.confidence, opts.margin);
+    const drawn = Math.min(calculated, pool.length);
+    const seed = Math.floor(opts.seed) || 1;
+    const rows = sampleRows(pool, drawn, seed);
+    const rowSet = new Set(rows);
+    const images = memeImages(plan, results, threshold, opts.minConfidence, rowSet);
+    const res = { available: pool.length, population, calculated, drawn, seed, rows, images };
+    if (opts.noCSV) return res;   // só as contagens, para a calculadora ao vivo
+    const out = outputCSV(table, plan, rowRes, { ...f, includeMetrics: opts.includeMetrics !== false, rows: rowSet });
+    return { ...res, csv: out.text, bom: out.bom };
+  }
+
+  function sampleParamsCSV(s, meta) {
+    const conf = { 'baixa': 'alta, média e baixa', 'média': 'alta e média', 'alta': 'só alta' }[normMinConf(meta.minConfidence)];
+    const rows = [
+      ['arquivo_csv', meta.csv], ['pasta_imagens', meta.folder], ['data', meta.date],
+      ['versao_memedetection', VERSION],
+      ['universo', 'linhas rotuladas como meme'], ['filtro_confianca_rotulo', conf], ['limiar_p_meme', String(meta.threshold)],
+      ['linhas_disponiveis', String(s.available)], ['tamanho_populacao', String(s.population)],
+      ['nivel_confianca_pct', meta.fixedSize ? '' : String(meta.confidence)], ['margem_erro_pct', meta.fixedSize ? '' : String(meta.margin)],
+      ['proporcao_esperada', meta.fixedSize ? '' : '0.5'],
+      ['tamanho_calculado', String(s.calculated)], ['linhas_sorteadas', String(s.drawn)],
+      ['imagens_copiadas', String(s.images.length)], ['semente', String(s.seed)],
+      ['metodo_sorteio', 'aleatório simples sem reposição (mulberry32 + Fisher–Yates)'],
+      ['linhas_sorteadas_numeros', s.rows.map(i => i + 1).join(' ')]
+    ];
+    return Papa.unparse({ fields: ['parametro', 'valor'], data: rows }) + '\n';
   }
 
   function summarize(rowRes) {
@@ -344,6 +418,16 @@
       const out = outputCSV(table, plan, rowRes, { onlyMemes: !!opts.onlyMemes, includeMetrics: opts.includeMetrics !== false, minConfidence: opts.minConfidence });
       const res = { csv: out.text, bom: out.bom, written: out.count, summary: summarize(rowRes),
                     memeImages: memeImages(plan, results, threshold, opts.minConfidence) };
+      if (opts.sample) {
+        const sm = opts.sample;
+        const s = buildSample(table, plan, rowRes, results, threshold,
+          { minConfidence: opts.minConfidence, confidence: sm.confidence, margin: sm.margin, population: sm.population,
+            size: sm.size, seed: sm.seed, includeMetrics: opts.includeMetrics !== false });
+        res.sample = { csv: s.csv, images: s.images, available: s.available, population: s.population,
+          calculated: s.calculated, drawn: s.drawn, seed: s.seed,
+          paramsCSV: sampleParamsCSV(s, { csv: opts.csvName, folder: sm.folder, date: sm.date, threshold,
+            minConfidence: opts.minConfidence, confidence: sm.confidence, margin: sm.margin, fixedSize: sm.size > 0 }) };
+      }
       if (truth !== null) {
         const ev = evaluate(table, rowRes, truth);
         res.evaluation = ev;
@@ -357,6 +441,6 @@
     VERSION, MODEL_VAL_ACCURACY, ROWNUM, MD_FIELDS, IMG_EXT,
     isEmptyCell, cleanName, baseName, logitOf,
     parseCSV, toCSV, indexFiles, analyzeLinks, planRun, linkRows,
-    computeRows, outputCSV, summarize, memeImages, passesConf, countRows, normMinConf, confidenceLevel, truthOf, evaluate, evaluationCSV, cliCommand, cli
+    computeRows, outputCSV, summarize, memeImages, sampleSize, sampleRows, buildSample, sampleParamsCSV, passesConf, countRows, normMinConf, confidenceLevel, truthOf, evaluate, evaluationCSV, cliCommand, cli
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
